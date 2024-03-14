@@ -1,0 +1,24 @@
+# Configuration file for <https://github.com/sapcc/go-makefile-maker>
+
+metadata:
+  url: https://github.com/sapcc/runtime-extension-maintenance-controller
+
+binaries:
+  - name:        runtime-extension-maintenance-controller
+    fromPackage: .
+    installTo:   bin/
+
+golang:
+  setGoModVersion: true
+
+githubWorkflow:
+  global:
+    defaultBranch: master
+  license:
+    enabled: true
+  securityChecks:
+    enabled: true
+
+verbatim: |
+  fly:
+    fly -t ci1 set-pipeline -p runtime-extension-maintenance-controller -c pipeline.yaml
