@@ -16,17 +16,17 @@ package management
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
+	jsonpatch "github.com/evanphx/json-patch"
 	"github.com/go-logr/logr"
 	"github.com/sapcc/runtime-extension-maintenance-controller/constants"
 	"github.com/sapcc/runtime-extension-maintenance-controller/workload"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/tools/clientcmd"
+	corev1_informers "k8s.io/client-go/informers/core/v1"
 	clusterv1beta1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -44,8 +44,8 @@ const (
 type MachineReconciler struct {
 	client.Client
 	Log                     logr.Logger
-	Scheme                  *runtime.Scheme
 	WorkloadNodeControllers map[string]*workload.NodeController
+	ClusterConnections      *workload.ClusterConnections
 	// A WorkloadNodeController needs an interruptable long-running context.
 	// Reconcile may get a short context, so the long-running context is
 	// fetched from a factory function.
@@ -63,14 +63,14 @@ func (r *MachineReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	if !ok || isMaintenanceController != MaintenanceControllerLabelValue {
 		return ctrl.Result{}, r.cleanupMachine(ctx, &machine, clusterName)
 	}
-	workloadController, ok := r.WorkloadNodeControllers[clusterName]
+	_, ok = r.WorkloadNodeControllers[clusterName]
+	clusterKey := types.NamespacedName{Namespace: machine.Namespace, Name: clusterName}
 	if !ok {
-		clusterKey := types.NamespacedName{Namespace: machine.Namespace, Name: clusterName}
-		var err error
-		workloadController, err = makeNodeCtrl(ctx, NodeControllerParamaters{
+		workloadController, err := makeNodeCtrl(ctx, NodeControllerParamaters{
 			cluster:          clusterKey,
 			managementClient: r.Client,
-			log:              r.Log,
+			log:              ctrl.Log.WithName("workload"),
+			connections:      r.ClusterConnections,
 		})
 		if err != nil {
 			return ctrl.Result{}, err
@@ -85,7 +85,7 @@ func (r *MachineReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return ctrl.Result{}, nil
 	}
 	nodeName := machine.Status.NodeRef.Name
-	node, err := workloadController.Lister().Get(nodeName)
+	node, err := r.ClusterConnections.GetNode(ctx, workload.GetNodeParams{Cluster: clusterKey, Name: nodeName})
 	if err != nil {
 		return ctrl.Result{}, fmt.Errorf("failed to get node %s in workload cluster %s node: %w", nodeName, clusterName, err)
 	}
@@ -93,7 +93,7 @@ func (r *MachineReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	originalMachine := machine.DeepCopy()
 	r.propagateState(&machine, node)
 
-	if err := workloadController.PatchNode(ctx, node, originalNode); err != nil {
+	if err := r.patchNode(ctx, patchNodeParams{cluster: clusterKey, current: node, original: originalNode}); err != nil {
 		return ctrl.Result{}, err
 	}
 	r.Log.Info("patched node", "node", node.Name)
@@ -125,6 +125,10 @@ func (r *MachineReconciler) cleanupMachine(ctx context.Context, machine *cluster
 		cancel()
 		delete(r.CancelFuncs, cluster)
 		delete(r.WorkloadNodeControllers, cluster)
+		r.ClusterConnections.DeleteConn(types.NamespacedName{
+			Namespace: machine.Namespace,
+			Name:      cluster,
+		})
 		r.Log.Info("stopped workload node reconciler, no machines enabled", "cluster", cluster)
 	}
 	return nil
@@ -132,6 +136,7 @@ func (r *MachineReconciler) cleanupMachine(ctx context.Context, machine *cluster
 
 type NodeControllerParamaters struct {
 	cluster          types.NamespacedName
+	connections      *workload.ClusterConnections
 	managementClient client.Client
 	log              logr.Logger
 }
@@ -139,29 +144,16 @@ type NodeControllerParamaters struct {
 // RBAC-Limited kubeconfigs are currently not possible: https://github.com/kubernetes-sigs/cluster-api/issues/5553
 // and https://github.com/kubernetes-sigs/cluster-api/issues/3661
 func makeNodeCtrl(ctx context.Context, params NodeControllerParamaters) (*workload.NodeController, error) {
-	// name string, ns string
-	secretKey := types.NamespacedName{Namespace: params.cluster.Namespace, Name: params.cluster.Name + "-kubeconfig"}
-	var kubeConfigSecret corev1.Secret
-	if err := params.managementClient.Get(ctx, secretKey, &kubeConfigSecret); err != nil {
+	controller, err := workload.NewNodeController(workload.NodeControllerOptions{
+		Log:              params.log,
+		ManagementClient: params.managementClient,
+		Connections:      params.connections,
+		Cluster:          params.cluster,
+	})
+	if err != nil {
 		return nil, err
 	}
-	kubeconfig, ok := kubeConfigSecret.Data["value"]
-	if !ok {
-		return nil, fmt.Errorf("secret %s has no value key", params.cluster.String())
-	}
-	restConfig, err := clientcmd.RESTConfigFromKubeConfig(kubeconfig)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load workload cluster %s kubeconfig: %w", params.cluster.String(), err)
-	}
-	clientset, err := kubernetes.NewForConfig(restConfig)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create clientset workload cluster %s: %w", params.cluster.String(), err)
-	}
-	controller, err := workload.NewNodeController(workload.NodeControllerOptions{
-		Log:              params.log.WithName(params.cluster.Name),
-		ManagementClient: params.managementClient,
-		WorkloadClient:   clientset,
-	})
+	workloadClient, err := workload.MakeClient(ctx, params.managementClient, params.cluster)
 	if err != nil {
 		return nil, fmt.Errorf(
 			"failed to initialize node controller for workload cluster %s: %w",
@@ -169,6 +161,16 @@ func makeNodeCtrl(ctx context.Context, params NodeControllerParamaters) (*worklo
 			err,
 		)
 	}
+	conn := workload.NewConnection(
+		workloadClient,
+		func(ni corev1_informers.NodeInformer) {
+			err := controller.AttachTo(ni)
+			if err != nil {
+				params.log.Error(err, "failed to attach workload node controller to informer", "cluster", params.cluster.String())
+			}
+		},
+	)
+	params.connections.AddConn(ctx, params.cluster, conn)
 	return &controller, nil
 }
 
@@ -213,6 +215,40 @@ func (r *MachineReconciler) patchMachine(ctx context.Context, current, original 
 		}
 		r.Log.Info("patched machine", "machine", client.ObjectKeyFromObject(current))
 	}
+	return nil
+}
+
+type patchNodeParams struct {
+	cluster  types.NamespacedName
+	current  *corev1.Node
+	original *corev1.Node
+}
+
+func (r *MachineReconciler) patchNode(ctx context.Context, params patchNodeParams) error {
+	if equality.Semantic.DeepEqual(params.current, params.original) {
+		return nil
+	}
+	originalMarshaled, err := json.Marshal(params.original)
+	if err != nil {
+		return err
+	}
+	currentMarshaled, err := json.Marshal(params.current)
+	if err != nil {
+		return err
+	}
+	patch, err := jsonpatch.CreateMergePatch(originalMarshaled, currentMarshaled)
+	if err != nil {
+		return err
+	}
+	patchParams := workload.PatchNodeParams{
+		Cluster:    params.cluster,
+		Name:       params.current.Name,
+		MergePatch: patch,
+	}
+	if err := r.ClusterConnections.PatchNode(ctx, patchParams); err != nil {
+		return err
+	}
+	r.Log.Info("patched node", "node", params.current.Name)
 	return nil
 }
 

@@ -25,6 +25,9 @@ import (
 	. "github.com/onsi/gomega"
 	"github.com/sapcc/runtime-extension-maintenance-controller/workload"
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
+	corev1_informers "k8s.io/client-go/informers/core/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
 	clusterv1beta1 "sigs.k8s.io/cluster-api/api/v1beta1"
@@ -79,14 +82,22 @@ var _ = BeforeSuite(func() {
 	managementClient, err = client.New(managementCfg, client.Options{})
 	Expect(err).To(Succeed())
 
-	controller, err := workload.NewNodeController(workload.NodeControllerOptions{
-		Log:              GinkgoLogr,
-		WorkloadClient:   workloadClientset,
-		ManagementClient: managementClient,
-	})
-	Expect(err).To(Succeed())
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 	stopController = cancel
+
+	clusterKey := types.NamespacedName{Namespace: metav1.NamespaceDefault, Name: "management"}
+	connections := workload.NewClusterConnections(managementClient, func() context.Context { return ctx })
+	controller, err := workload.NewNodeController(workload.NodeControllerOptions{
+		Log:              GinkgoLogr,
+		ManagementClient: managementClient,
+		Connections:      connections,
+		Cluster:          clusterKey,
+	})
+	connections.AddConn(ctx, clusterKey, workload.NewConnection(workloadClientset, func(ni corev1_informers.NodeInformer) {
+		Expect(controller.AttachTo(ni)).To(Succeed())
+	}))
+
+	Expect(err).To(Succeed())
 	go func() {
 		controller.Run(ctx)
 	}()

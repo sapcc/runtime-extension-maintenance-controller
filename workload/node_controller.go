@@ -16,22 +16,15 @@ package workload
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"reflect"
 	"time"
 
-	jsonpatch "github.com/evanphx/json-patch/v5"
 	"github.com/go-logr/logr"
 	"github.com/sapcc/runtime-extension-maintenance-controller/constants"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/equality"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/informers"
 	corev1_informers "k8s.io/client-go/informers/core/v1"
-	"k8s.io/client-go/kubernetes"
-	corev1_listers "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 	clusterv1beta1 "sigs.k8s.io/cluster-api/api/v1beta1"
@@ -44,43 +37,56 @@ const (
 	maxDelay  time.Duration = 5 * time.Minute
 )
 
+// NodeController is a controller that watches nodes in a workload cluster.
+// After creation attachTo must be called to attach the controller to a node informer.
+// The informer management is separated from the controller to allow swapping the informer
+// for a different one, when authentication expires.
 type NodeController struct {
 	log              logr.Logger
 	managementClient client.Client
-	workloadClient   kubernetes.Interface
+	connections      *ClusterConnections
 	queue            workqueue.RateLimitingInterface
-	factory          informers.SharedInformerFactory
-	informer         corev1_informers.NodeInformer
+	cluster          types.NamespacedName
 }
 
 type NodeControllerOptions struct {
 	Log              logr.Logger
 	ManagementClient client.Client
-	WorkloadClient   kubernetes.Interface
+	Connections      *ClusterConnections
+	Cluster          types.NamespacedName
 }
 
 func NewNodeController(opts NodeControllerOptions) (NodeController, error) {
 	// shared informers are not shared for WorkloadNodeControllers
 	// as nodes from different clusters may end up in the shared cache
-	factory := informers.NewSharedInformerFactory(opts.WorkloadClient, time.Minute)
-	informer := factory.Core().V1().Nodes()
 	queue := workqueue.NewRateLimitingQueue(workqueue.NewItemExponentialFailureRateLimiter(baseDelay, maxDelay))
-	_, err := informer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+	ctrl := NodeController{
+		log:              opts.Log.WithValues("cluster", opts.Cluster.String()),
+		managementClient: opts.ManagementClient,
+		queue:            queue,
+		connections:      opts.Connections,
+		cluster:          opts.Cluster,
+	}
+	return ctrl, nil
+}
+
+func (c *NodeController) AttachTo(nodeInformer corev1_informers.NodeInformer) error {
+	_, err := nodeInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			node, ok := obj.(*corev1.Node)
 			if !ok {
-				opts.Log.Info("node informer received non-node object")
+				c.log.Info("node informer received non-node object")
 				return
 			}
-			queue.Add(client.ObjectKeyFromObject(node))
+			c.queue.Add(client.ObjectKeyFromObject(node))
 		},
 		UpdateFunc: func(oldObj, newObj interface{}) {
 			node, ok := newObj.(*corev1.Node)
 			if !ok {
-				opts.Log.Info("node informer received non-node object")
+				c.log.Info("node informer received non-node object")
 				return
 			}
-			queue.Add(client.ObjectKeyFromObject(node))
+			c.queue.Add(client.ObjectKeyFromObject(node))
 		},
 		DeleteFunc: func(obj interface{}) {
 			if deleted, ok := obj.(cache.DeletedFinalStateUnknown); ok {
@@ -88,29 +94,18 @@ func NewNodeController(opts NodeControllerOptions) (NodeController, error) {
 			}
 			node, ok := obj.(*corev1.Node)
 			if !ok {
-				opts.Log.Info("node informer received non-node object")
+				c.log.Info("node informer received non-node object")
 				return
 			}
 			key := client.ObjectKeyFromObject(node)
-			queue.Forget(key)
-			queue.Done(key)
+			c.queue.Forget(key)
+			c.queue.Done(key)
 		},
 	})
-	return NodeController{
-		log:              opts.Log,
-		managementClient: opts.ManagementClient,
-		workloadClient:   opts.WorkloadClient,
-		factory:          factory,
-		informer:         informer,
-		queue:            queue,
-	}, err
+	return err
 }
 
-// TODO: rotate when kubeconfig expires.
 func (c *NodeController) Run(ctx context.Context) {
-	c.factory.Start(ctx.Done())
-	defer c.factory.Shutdown()
-	c.factory.WaitForCacheSync(ctx.Done())
 	defer c.queue.ShutDown()
 	go func() {
 		for {
@@ -134,7 +129,7 @@ func (c *NodeController) Run(ctx context.Context) {
 }
 
 func (c *NodeController) Reconcile(ctx context.Context, req ctrl.Request) error {
-	node, err := c.informer.Lister().Get(req.Name)
+	node, err := c.connections.GetNode(ctx, GetNodeParams{Cluster: c.cluster, Name: req.Name})
 	if err != nil {
 		return err
 	}
@@ -166,28 +161,4 @@ func (c *NodeController) Reconcile(ctx context.Context, req ctrl.Request) error 
 	originalMachine := machine.DeepCopy()
 	delete(machine.Annotations, constants.PreDrainDeleteHookAnnotationKey)
 	return c.managementClient.Patch(ctx, &machine, client.MergeFrom(originalMachine))
-}
-
-func (c *NodeController) Lister() corev1_listers.NodeLister {
-	return c.informer.Lister()
-}
-
-func (c *NodeController) PatchNode(ctx context.Context, current *corev1.Node, original *corev1.Node) error {
-	if equality.Semantic.DeepEqual(current, original) {
-		return nil
-	}
-	originalMarshaled, err := json.Marshal(original)
-	if err != nil {
-		return err
-	}
-	currentMarshaled, err := json.Marshal(current)
-	if err != nil {
-		return err
-	}
-	patch, err := jsonpatch.CreateMergePatch(originalMarshaled, currentMarshaled)
-	if err != nil {
-		return err
-	}
-	_, err = c.workloadClient.CoreV1().Nodes().Patch(ctx, current.Name, types.MergePatchType, patch, v1.PatchOptions{})
-	return err
 }

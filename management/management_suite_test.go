@@ -132,15 +132,16 @@ var _ = BeforeSuite(func() {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 	stopController = cancel
 
+	connections := workload.NewClusterConnections(managementClient, func() context.Context { return ctx })
 	err = (&management.MachineReconciler{
 		Client:                  managementClient,
 		Log:                     GinkgoLogr,
-		Scheme:                  scheme.Scheme,
 		WorkloadNodeControllers: map[string]*workload.NodeController{},
 		CancelFuncs:             map[string]context.CancelFunc{},
 		WorkloadContextFunc: func() context.Context {
 			return ctx
 		},
+		ClusterConnections: connections,
 	}).SetupWithManager(k8sManager)
 	Expect(err).To(Succeed())
 
