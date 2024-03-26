@@ -22,4 +22,3 @@ After attaching the approve-deletion label the pre-drain hook will be removed, w
 
 ## Installation
 A Helm chart is available [here](https://github.com/sapcc/helm-charts/tree/master/system/runtime-extension-maintenance-controller).
-

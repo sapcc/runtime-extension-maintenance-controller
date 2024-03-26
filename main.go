@@ -58,8 +58,9 @@ func main() {
 	setupLog.Info("loaded kubeconfig", "context", kubecontext, "host", restConfig.Host)
 
 	mgr, err := ctrl.NewManager(restConfig, ctrl.Options{
-		Scheme:         scheme,
-		LeaderElection: true,
+		Scheme:           scheme,
+		LeaderElection:   true,
+		LeaderElectionID: "runtime-extension-maintenance-controller",
 	})
 	if err != nil {
 		setupLog.Error(err, "unable to start manager")
