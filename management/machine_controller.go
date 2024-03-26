@@ -117,20 +117,25 @@ func (r *MachineReconciler) cleanupMachine(ctx context.Context, machine *cluster
 	if err := r.Client.List(ctx, &machineList, selector); err != nil {
 		return err
 	}
-	if len(machineList.Items) == 0 {
-		cancel, ok := r.CancelFuncs[cluster]
-		if !ok {
-			return fmt.Errorf("expected workload node controller for cluster %s, but it does not exist", cluster)
-		}
-		cancel()
-		delete(r.CancelFuncs, cluster)
-		delete(r.WorkloadNodeControllers, cluster)
-		r.ClusterConnections.DeleteConn(types.NamespacedName{
-			Namespace: machine.Namespace,
-			Name:      cluster,
-		})
-		r.Log.Info("stopped workload node reconciler, no machines enabled", "cluster", cluster)
+	if len(machineList.Items) > 0 {
+		return nil
 	}
+	_, hasController := r.WorkloadNodeControllers[cluster]
+	cancel, hasCancel := r.CancelFuncs[cluster]
+	if !hasController && !hasCancel {
+		return nil
+	}
+	if !hasCancel {
+		return fmt.Errorf("expected cancel func for cluster %s, but it does not exist", cluster)
+	}
+	cancel()
+	delete(r.CancelFuncs, cluster)
+	delete(r.WorkloadNodeControllers, cluster)
+	r.ClusterConnections.DeleteConn(types.NamespacedName{
+		Namespace: machine.Namespace,
+		Name:      cluster,
+	})
+	r.Log.Info("stopped workload node reconciler, no machines enabled", "cluster", cluster)
 	return nil
 }
 
