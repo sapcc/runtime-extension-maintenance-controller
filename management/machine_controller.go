@@ -23,6 +23,7 @@ import (
 	"github.com/sapcc/runtime-extension-maintenance-controller/constants"
 	"github.com/sapcc/runtime-extension-maintenance-controller/state"
 	"github.com/sapcc/runtime-extension-maintenance-controller/workload"
+	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
 	corev1_informers "k8s.io/client-go/informers/core/v1"
 	clusterv1beta1 "sigs.k8s.io/cluster-api/api/v1beta1"
@@ -50,7 +51,12 @@ type MachineReconciler struct {
 
 func (r *MachineReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	var machine clusterv1beta1.Machine
-	if err := r.Client.Get(ctx, req.NamespacedName, &machine); err != nil {
+	err := r.Client.Get(ctx, req.NamespacedName, &machine)
+	if errors.IsNotFound(err) {
+		r.Log.Info("failed to get machine, was it deleted?", "machine", req.String())
+		return ctrl.Result{}, nil
+	}
+	if err != nil {
 		return ctrl.Result{}, err
 	}
 	clusterName := machine.Spec.ClusterName
@@ -69,7 +75,7 @@ func (r *MachineReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		workloadController, err := makeNodeCtrl(ctx, NodeControllerParamaters{
 			cluster:          clusterKey,
 			managementClient: r.Client,
-			log:              ctrl.Log.WithName("workload"),
+			log:              ctrl.Log.WithName("workload").WithValues("cluster", clusterKey.String()),
 			connections:      r.ClusterConnections,
 			workloadCtx:      workloadCtx,
 		})
@@ -106,7 +112,7 @@ func (r *MachineReconciler) cleanupMachine(ctx context.Context, machine *cluster
 	if err := r.Client.Patch(ctx, machine, client.MergeFrom(original)); err != nil {
 		return fmt.Errorf("failed to remove pre-drain hook for machine %s", machine.Name)
 	}
-	r.Log.Info("removed pre-drain hook")
+	r.Log.Info("removed pre-drain hook", "machine", machine.Name, "cluster", cluster)
 	// cleanup workload node reconciler, if no machine uses maintenance-controller
 	selector := client.MatchingLabels{
 		clusterv1beta1.ClusterNameLabel: cluster,
@@ -172,7 +178,7 @@ func makeNodeCtrl(ctx context.Context, params NodeControllerParamaters) (*worklo
 		func(ni corev1_informers.NodeInformer) {
 			err := controller.AttachTo(ni)
 			if err != nil {
-				params.log.Error(err, "failed to attach workload node controller to informer", "cluster", params.cluster.String())
+				params.log.Error(err, "failed to attach workload node controller to informer")
 			}
 		},
 	)

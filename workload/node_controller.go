@@ -24,6 +24,7 @@ import (
 	"github.com/sapcc/runtime-extension-maintenance-controller/clusters"
 	"github.com/sapcc/runtime-extension-maintenance-controller/state"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
 	corev1_informers "k8s.io/client-go/informers/core/v1"
 	"k8s.io/client-go/tools/cache"
@@ -131,6 +132,10 @@ func (c *NodeController) Run(ctx context.Context) {
 
 func (c *NodeController) Reconcile(ctx context.Context, req ctrl.Request) error {
 	node, err := c.connections.GetNode(ctx, clusters.GetNodeParams{Log: c.log, Cluster: c.cluster, Name: req.Name})
+	if errors.IsNotFound(err) {
+		c.log.Info("failed to get workload node, was it deleted?", "node", req.Name)
+		return nil
+	}
 	if err != nil {
 		return err
 	}
