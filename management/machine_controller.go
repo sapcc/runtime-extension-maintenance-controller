@@ -129,7 +129,7 @@ func (r *MachineReconciler) cleanupMachine(ctx context.Context, machine *cluster
 	cancel()
 	delete(r.CancelFuncs, cluster)
 	delete(r.WorkloadNodeControllers, cluster)
-	r.ClusterConnections.DeleteConn(types.NamespacedName{
+	r.ClusterConnections.DeleteConn(r.Log, types.NamespacedName{
 		Namespace: machine.Namespace,
 		Name:      cluster,
 	})
@@ -173,7 +173,7 @@ func makeNodeCtrl(ctx context.Context, params NodeControllerParamaters) (*worklo
 			}
 		},
 	)
-	params.connections.AddConn(ctx, params.cluster, conn)
+	params.connections.AddConn(ctx, params.log, params.cluster, conn)
 	return &controller, nil
 }
 

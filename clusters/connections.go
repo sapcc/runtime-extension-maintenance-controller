@@ -113,14 +113,17 @@ func NewConnections(client client.Client, contextFactory func() context.Context)
 	}
 }
 
-func (cc *Connections) AddConn(ctx context.Context, cluster types.NamespacedName, conn *Connection) {
+func (cc *Connections) AddConn(ctx context.Context, log logr.Logger, cluster types.NamespacedName, conn *Connection) {
 	cc.mutex.Lock()
 	defer cc.mutex.Unlock()
 	if old, ok := cc.clusters[cluster]; ok {
+		log.Info("shutting done old connection")
 		old.Shutdown()
 	}
 	cc.clusters[cluster] = conn
+	log.Info("starting new connection")
 	conn.Start(ctx)
+	log.Info("started new connection")
 }
 
 func (cc *Connections) GetConn(cluster types.NamespacedName) *Connection {
@@ -132,10 +135,11 @@ func (cc *Connections) GetConn(cluster types.NamespacedName) *Connection {
 	return nil
 }
 
-func (cc *Connections) DeleteConn(cluster types.NamespacedName) {
+func (cc *Connections) DeleteConn(log logr.Logger, cluster types.NamespacedName) {
 	cc.mutex.Lock()
 	defer cc.mutex.Unlock()
 	if old, ok := cc.clusters[cluster]; ok {
+		log.Info("shutting done old connection for deletion")
 		old.Shutdown()
 	}
 	delete(cc.clusters, cluster)
@@ -166,7 +170,7 @@ func (cc *Connections) GetNode(ctx context.Context, params GetNodeParams) (*core
 	}
 	attacher := conn.nodeAttacher
 	conn = NewConnection(workloadClient, attacher)
-	cc.AddConn(cc.makeContext(), params.Cluster, conn)
+	cc.AddConn(cc.makeContext(), params.Log, params.Cluster, conn)
 	return conn.nodeInformer.Lister().Get(params.Name)
 }
 
@@ -202,7 +206,7 @@ func (cc *Connections) PatchNode(ctx context.Context, params PatchNodeParams) er
 	}
 	attacher := conn.nodeAttacher
 	conn = NewConnection(workloadClient, attacher)
-	cc.AddConn(cc.makeContext(), params.Cluster, conn)
+	cc.AddConn(cc.makeContext(), params.Log, params.Cluster, conn)
 	_, err = conn.client.CoreV1().Nodes().Patch(
 		ctx,
 		params.Name,

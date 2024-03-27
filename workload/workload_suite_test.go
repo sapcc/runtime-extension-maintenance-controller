@@ -94,9 +94,11 @@ var _ = BeforeSuite(func() {
 		Connections:      connections,
 		Cluster:          clusterKey,
 	})
-	connections.AddConn(ctx, clusterKey, clusters.NewConnection(workloadClientset, func(ni corev1_informers.NodeInformer) {
-		Expect(controller.AttachTo(ni)).To(Succeed())
-	}))
+	connections.AddConn(ctx, GinkgoLogr, clusterKey,
+		clusters.NewConnection(workloadClientset, func(ni corev1_informers.NodeInformer) {
+			Expect(controller.AttachTo(ni)).To(Succeed())
+		},
+		))
 
 	Expect(err).To(Succeed())
 	go func() {
