@@ -65,17 +65,19 @@ func (r *MachineReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	_, ok = r.WorkloadNodeControllers[clusterName]
 	clusterKey := types.NamespacedName{Namespace: machine.Namespace, Name: clusterName}
 	if !ok {
+		workloadCtx, cancel := context.WithCancel(r.WorkloadContextFunc())
 		workloadController, err := makeNodeCtrl(ctx, NodeControllerParamaters{
 			cluster:          clusterKey,
 			managementClient: r.Client,
 			log:              ctrl.Log.WithName("workload"),
 			connections:      r.ClusterConnections,
+			workloadCtx:      workloadCtx,
 		})
 		if err != nil {
+			cancel()
 			return ctrl.Result{}, err
 		}
 		r.WorkloadNodeControllers[clusterName] = workloadController
-		workloadCtx, cancel := context.WithCancel(r.WorkloadContextFunc())
 		r.CancelFuncs[clusterName] = cancel
 		go workloadController.Run(workloadCtx)
 	}
@@ -142,6 +144,7 @@ type NodeControllerParamaters struct {
 	connections      *clusters.Connections
 	managementClient client.Client
 	log              logr.Logger
+	workloadCtx      context.Context
 }
 
 // RBAC-Limited kubeconfigs are currently not possible: https://github.com/kubernetes-sigs/cluster-api/issues/5553
@@ -173,7 +176,7 @@ func makeNodeCtrl(ctx context.Context, params NodeControllerParamaters) (*worklo
 			}
 		},
 	)
-	params.connections.AddConn(ctx, params.log, params.cluster, conn)
+	params.connections.AddConn(params.workloadCtx, params.log, params.cluster, conn)
 	return &controller, nil
 }
 
