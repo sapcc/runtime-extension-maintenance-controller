@@ -104,6 +104,7 @@ func (r *MachineReconciler) cleanupMachine(ctx context.Context, machine *cluster
 	if err := r.Client.Patch(ctx, machine, client.MergeFrom(original)); err != nil {
 		return fmt.Errorf("failed to remove pre-drain hook for machine %s", machine.Name)
 	}
+	r.Log.Info("removed pre-drain hook")
 	// cleanup workload node reconciler, if no machine uses maintenance-controller
 	selector := client.MatchingLabels{
 		clusterv1beta1.ClusterNameLabel: cluster,
@@ -121,6 +122,7 @@ func (r *MachineReconciler) cleanupMachine(ctx context.Context, machine *cluster
 	if !hasController && !hasCancel {
 		return nil
 	}
+	r.Log.Info("stopping workload node reconciler, no machines enabled", "cluster", cluster)
 	if !hasCancel {
 		return fmt.Errorf("expected cancel func for cluster %s, but it does not exist", cluster)
 	}

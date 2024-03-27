@@ -61,12 +61,12 @@ func propagate(log logr.Logger, machine *clusterv1beta1.Machine, node *corev1.No
 	}
 
 	// For to be deleted machines with hook deliver label onto the node (deletion timestamp)
-	if machine.DeletionTimestamp == nil {
-		delete(node.Labels, MachineDeletedLabelKey)
-		log.Info("queueing machine deletion label removal")
-	} else {
+	if hasMaintenanceState && machine.DeletionTimestamp != nil {
 		node.Labels[MachineDeletedLabelKey] = MachineDeletedLabelValue
 		log.Info("queueing machine deletion label attachment")
+	} else {
+		delete(node.Labels, MachineDeletedLabelKey)
+		log.Info("queueing machine deletion label removal")
 	}
 }
 

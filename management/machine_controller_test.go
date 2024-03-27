@@ -95,19 +95,6 @@ var _ = Describe("The MachineReconciler", func() {
 		}).ShouldNot(HaveKey(state.MachineDeletedLabelKey))
 	})
 
-	It("attaches the machine deletion label to the node on machine deletion", func() {
-		originalMachine := machine.DeepCopy()
-		machine.Finalizers = []string{"test-finalizer"}
-		Expect(managementClient.Patch(context.Background(), machine, client.MergeFrom(originalMachine))).To(Succeed())
-		Expect(managementClient.Delete(context.Background(), machine)).To(Succeed())
-
-		Eventually(func(g Gomega) map[string]string {
-			var result corev1.Node
-			g.Expect(workloadClient.Get(context.Background(), client.ObjectKeyFromObject(node), &result)).To(Succeed())
-			return result.Labels
-		}).Should(HaveKeyWithValue(state.MachineDeletedLabelKey, state.MachineDeletedLabelValue))
-	})
-
 	When("the node is managed by the maintenance-controller", func() {
 
 		BeforeEach(func() {
@@ -118,6 +105,19 @@ var _ = Describe("The MachineReconciler", func() {
 			originalMachine := machine.DeepCopy()
 			machine.Labels["timestamp"] = fmt.Sprint(time.Now().Unix())
 			Expect(managementClient.Patch(context.Background(), machine, client.MergeFrom(originalMachine))).To(Succeed())
+		})
+
+		It("attaches the machine deletion label to the node on machine deletion", func() {
+			originalMachine := machine.DeepCopy()
+			machine.Finalizers = []string{"test-finalizer"}
+			Expect(managementClient.Patch(context.Background(), machine, client.MergeFrom(originalMachine))).To(Succeed())
+			Expect(managementClient.Delete(context.Background(), machine)).To(Succeed())
+
+			Eventually(func(g Gomega) map[string]string {
+				var result corev1.Node
+				g.Expect(workloadClient.Get(context.Background(), client.ObjectKeyFromObject(node), &result)).To(Succeed())
+				return result.Labels
+			}).Should(HaveKeyWithValue(state.MachineDeletedLabelKey, state.MachineDeletedLabelValue))
 		})
 
 		It("attaches the pre-drain hook", func() {
