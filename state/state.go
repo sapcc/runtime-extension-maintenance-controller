@@ -96,6 +96,7 @@ func (r *Reconciler) PatchState(ctx context.Context, machine *clusterv1beta1.Mac
 			return err
 		}
 		patchParams := clusters.PatchNodeParams{
+			Log:        r.Log,
 			Cluster:    r.Cluster,
 			Name:       node.Name,
 			MergePatch: patch,

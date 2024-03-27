@@ -84,7 +84,7 @@ func (r *MachineReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return ctrl.Result{}, nil
 	}
 	nodeName := machine.Status.NodeRef.Name
-	node, err := r.ClusterConnections.GetNode(ctx, clusters.GetNodeParams{Cluster: clusterKey, Name: nodeName})
+	node, err := r.ClusterConnections.GetNode(ctx, clusters.GetNodeParams{Log: r.Log, Cluster: clusterKey, Name: nodeName})
 	if err != nil {
 		return ctrl.Result{}, fmt.Errorf("failed to get node %s in workload cluster %s node: %w", nodeName, clusterName, err)
 	}

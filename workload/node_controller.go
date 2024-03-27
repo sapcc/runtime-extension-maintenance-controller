@@ -130,7 +130,7 @@ func (c *NodeController) Run(ctx context.Context) {
 }
 
 func (c *NodeController) Reconcile(ctx context.Context, req ctrl.Request) error {
-	node, err := c.connections.GetNode(ctx, clusters.GetNodeParams{Cluster: c.cluster, Name: req.Name})
+	node, err := c.connections.GetNode(ctx, clusters.GetNodeParams{Log: c.log, Cluster: c.cluster, Name: req.Name})
 	if err != nil {
 		return err
 	}

@@ -20,6 +20,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -141,6 +142,7 @@ func (cc *Connections) DeleteConn(cluster types.NamespacedName) {
 }
 
 type GetNodeParams struct {
+	Log     logr.Logger
 	Cluster types.NamespacedName
 	Name    string
 }
@@ -157,7 +159,7 @@ func (cc *Connections) GetNode(ctx context.Context, params GetNodeParams) (*core
 	if !errors.IsUnauthorized(err) {
 		return nil, err
 	}
-	// auth expired recreate conn
+	params.Log.Info("authentication expired, trying reauth", "cluster", params.Cluster)
 	workloadClient, err := MakeClient(ctx, cc.managementClient, types.NamespacedName{})
 	if err != nil {
 		return nil, err
@@ -169,6 +171,7 @@ func (cc *Connections) GetNode(ctx context.Context, params GetNodeParams) (*core
 }
 
 type PatchNodeParams struct {
+	Log        logr.Logger
 	Cluster    types.NamespacedName
 	Name       string
 	MergePatch []byte
@@ -192,7 +195,7 @@ func (cc *Connections) PatchNode(ctx context.Context, params PatchNodeParams) er
 	if !errors.IsUnauthorized(err) {
 		return err
 	}
-	// auth expired recreate conn
+	params.Log.Info("authentication expired, trying reauth", "cluster", params.Cluster)
 	workloadClient, err := MakeClient(ctx, cc.managementClient, types.NamespacedName{})
 	if err != nil {
 		return err
