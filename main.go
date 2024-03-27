@@ -19,6 +19,7 @@ import (
 	"flag"
 	"os"
 
+	"github.com/sapcc/runtime-extension-maintenance-controller/clusters"
 	"github.com/sapcc/runtime-extension-maintenance-controller/management"
 	"github.com/sapcc/runtime-extension-maintenance-controller/workload"
 	"go.uber.org/zap/zapcore"
@@ -68,7 +69,7 @@ func main() {
 	}
 
 	ctx := ctrl.SetupSignalHandler()
-	connections := workload.NewClusterConnections(mgr.GetClient(), func() context.Context { return ctx })
+	connections := clusters.NewConnections(mgr.GetClient(), func() context.Context { return ctx })
 	err = (&management.MachineReconciler{
 		Client:                  mgr.GetClient(),
 		Log:                     ctrl.Log.WithName("management"),

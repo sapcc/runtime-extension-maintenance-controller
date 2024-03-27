@@ -20,6 +20,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/sapcc/runtime-extension-maintenance-controller/constants"
+	"github.com/sapcc/runtime-extension-maintenance-controller/state"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	corev1 "k8s.io/api/core/v1"
@@ -50,13 +51,14 @@ var _ = Describe("The NodeController", func() {
 		machine.Name = machineName
 		machine.Namespace = metav1.NamespaceDefault
 		machine.Spec.ClusterName = "management"
+		Expect(managementClient.Create(context.Background(), machine)).To(Succeed())
 		machine.Status.NodeRef = &corev1.ObjectReference{
 			Kind:       node.Kind,
 			Name:       node.Name,
 			UID:        node.UID,
 			APIVersion: node.APIVersion,
 		}
-		Expect(managementClient.Create(context.Background(), machine)).To(Succeed())
+		Expect(managementClient.Status().Update(context.Background(), machine)).To(Succeed())
 	})
 
 	AfterEach(func() {
@@ -64,7 +66,26 @@ var _ = Describe("The NodeController", func() {
 		Expect(workloadClient.Delete(context.Background(), node)).To(Succeed())
 	})
 
+	It("attaches the pre-drain hook when the maintenance-state label is attached", func() {
+		originalNode := node.DeepCopy()
+		node.Labels = map[string]string{state.MaintenanceStateLabelKey: "whatever"}
+		Expect(workloadClient.Patch(context.Background(), node, client.MergeFrom(originalNode))).To(Succeed())
+		Eventually(func(g Gomega) map[string]string {
+			var result clusterv1beta1.Machine
+			g.Expect(managementClient.Get(context.Background(), client.ObjectKeyFromObject(machine), &result))
+			return result.Annotations
+		}).Should(HaveKeyWithValue(constants.PreDrainDeleteHookAnnotationKey, constants.PreDrainDeleteHookAnnotationValue))
+	})
+
 	It("removes the pre-drain hook when approved", func() {
+		originalNode := node.DeepCopy()
+		node.Labels = map[string]string{state.MaintenanceStateLabelKey: "whatever"}
+		Expect(workloadClient.Patch(context.Background(), node, client.MergeFrom(originalNode))).To(Succeed())
+		Eventually(func(g Gomega) map[string]string {
+			var result clusterv1beta1.Machine
+			g.Expect(managementClient.Get(context.Background(), client.ObjectKeyFromObject(machine), &result))
+			return result.Annotations
+		}).Should(HaveKeyWithValue(constants.PreDrainDeleteHookAnnotationKey, constants.PreDrainDeleteHookAnnotationValue))
 		originalMachine := machine.DeepCopy()
 		machine.Annotations = map[string]string{
 			constants.PreDrainDeleteHookAnnotationKey: constants.PreDrainDeleteHookAnnotationValue,
@@ -75,10 +96,8 @@ var _ = Describe("The NodeController", func() {
 			g.Expect(managementClient.Get(context.Background(), client.ObjectKeyFromObject(machine), &result))
 			return result.Annotations
 		}).Should(HaveKeyWithValue(constants.PreDrainDeleteHookAnnotationKey, constants.PreDrainDeleteHookAnnotationValue))
-		originalNode := node.DeepCopy()
-		node.Labels = map[string]string{
-			constants.ApproveDeletionLabelKey: constants.ApproveDeletionLabelValue,
-		}
+		originalNode = node.DeepCopy()
+		node.Labels[constants.ApproveDeletionLabelKey] = constants.ApproveDeletionLabelValue
 		Expect(workloadClient.Patch(context.Background(), node, client.MergeFrom(originalNode))).To(Succeed())
 		Eventually(func(g Gomega) map[string]string {
 			var result clusterv1beta1.Machine

@@ -23,6 +23,7 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"github.com/sapcc/runtime-extension-maintenance-controller/clusters"
 	"github.com/sapcc/runtime-extension-maintenance-controller/workload"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -86,14 +87,14 @@ var _ = BeforeSuite(func() {
 	stopController = cancel
 
 	clusterKey := types.NamespacedName{Namespace: metav1.NamespaceDefault, Name: "management"}
-	connections := workload.NewClusterConnections(managementClient, func() context.Context { return ctx })
+	connections := clusters.NewConnections(managementClient, func() context.Context { return ctx })
 	controller, err := workload.NewNodeController(workload.NodeControllerOptions{
 		Log:              GinkgoLogr,
 		ManagementClient: managementClient,
 		Connections:      connections,
 		Cluster:          clusterKey,
 	})
-	connections.AddConn(ctx, clusterKey, workload.NewConnection(workloadClientset, func(ni corev1_informers.NodeInformer) {
+	connections.AddConn(ctx, clusterKey, clusters.NewConnection(workloadClientset, func(ni corev1_informers.NodeInformer) {
 		Expect(controller.AttachTo(ni)).To(Succeed())
 	}))
 

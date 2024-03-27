@@ -23,6 +23,7 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"github.com/sapcc/runtime-extension-maintenance-controller/clusters"
 	"github.com/sapcc/runtime-extension-maintenance-controller/management"
 	"github.com/sapcc/runtime-extension-maintenance-controller/workload"
 	corev1 "k8s.io/api/core/v1"
@@ -132,7 +133,7 @@ var _ = BeforeSuite(func() {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 	stopController = cancel
 
-	connections := workload.NewClusterConnections(managementClient, func() context.Context { return ctx })
+	connections := clusters.NewConnections(managementClient, func() context.Context { return ctx })
 	err = (&management.MachineReconciler{
 		Client:                  managementClient,
 		Log:                     GinkgoLogr,

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package workload
+package clusters
 
 import (
 	"context"
@@ -93,18 +93,18 @@ func (conn *Connection) Shutdown() {
 	conn.factory.Shutdown()
 }
 
-// ClusterConnections is a collection of connections to workload clusters.
+// Connections is a collection of connections to workload clusters.
 // It providers wrappers for getting and patching nodes in workload clusters
 // that automatically recreate connections when the authentication expires.
-type ClusterConnections struct {
+type Connections struct {
 	clusters         map[types.NamespacedName]*Connection
 	mutex            sync.Mutex
 	managementClient client.Client
 	makeContext      func() context.Context
 }
 
-func NewClusterConnections(client client.Client, contextFactory func() context.Context) *ClusterConnections {
-	return &ClusterConnections{
+func NewConnections(client client.Client, contextFactory func() context.Context) *Connections {
+	return &Connections{
 		clusters:         make(map[types.NamespacedName]*Connection),
 		mutex:            sync.Mutex{},
 		managementClient: client,
@@ -112,7 +112,7 @@ func NewClusterConnections(client client.Client, contextFactory func() context.C
 	}
 }
 
-func (cc *ClusterConnections) AddConn(ctx context.Context, cluster types.NamespacedName, conn *Connection) {
+func (cc *Connections) AddConn(ctx context.Context, cluster types.NamespacedName, conn *Connection) {
 	cc.mutex.Lock()
 	defer cc.mutex.Unlock()
 	if old, ok := cc.clusters[cluster]; ok {
@@ -122,7 +122,7 @@ func (cc *ClusterConnections) AddConn(ctx context.Context, cluster types.Namespa
 	conn.Start(ctx)
 }
 
-func (cc *ClusterConnections) GetConn(cluster types.NamespacedName) *Connection {
+func (cc *Connections) GetConn(cluster types.NamespacedName) *Connection {
 	cc.mutex.Lock()
 	defer cc.mutex.Unlock()
 	if conn, ok := cc.clusters[cluster]; ok {
@@ -131,7 +131,7 @@ func (cc *ClusterConnections) GetConn(cluster types.NamespacedName) *Connection 
 	return nil
 }
 
-func (cc *ClusterConnections) DeleteConn(cluster types.NamespacedName) {
+func (cc *Connections) DeleteConn(cluster types.NamespacedName) {
 	cc.mutex.Lock()
 	defer cc.mutex.Unlock()
 	if old, ok := cc.clusters[cluster]; ok {
@@ -145,7 +145,7 @@ type GetNodeParams struct {
 	Name    string
 }
 
-func (cc *ClusterConnections) GetNode(ctx context.Context, params GetNodeParams) (*corev1.Node, error) {
+func (cc *Connections) GetNode(ctx context.Context, params GetNodeParams) (*corev1.Node, error) {
 	conn := cc.GetConn(params.Cluster)
 	if conn == nil {
 		return nil, fmt.Errorf("no connection for cluster %s", params.Cluster)
@@ -174,7 +174,7 @@ type PatchNodeParams struct {
 	MergePatch []byte
 }
 
-func (cc *ClusterConnections) PatchNode(ctx context.Context, params PatchNodeParams) error {
+func (cc *Connections) PatchNode(ctx context.Context, params PatchNodeParams) error {
 	conn := cc.GetConn(params.Cluster)
 	if conn == nil {
 		return fmt.Errorf("no connection for cluster %s", params.Cluster)

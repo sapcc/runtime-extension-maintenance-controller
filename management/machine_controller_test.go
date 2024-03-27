@@ -23,6 +23,7 @@ import (
 	. "github.com/onsi/gomega"
 	"github.com/sapcc/runtime-extension-maintenance-controller/constants"
 	"github.com/sapcc/runtime-extension-maintenance-controller/management"
+	"github.com/sapcc/runtime-extension-maintenance-controller/state"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -91,7 +92,7 @@ var _ = Describe("The MachineReconciler", func() {
 			var result corev1.Node
 			g.Expect(workloadClient.Get(context.Background(), client.ObjectKeyFromObject(node), &result)).To(Succeed())
 			return result.Labels
-		}).ShouldNot(HaveKey(management.MachineDeletedLabelKey))
+		}).ShouldNot(HaveKey(state.MachineDeletedLabelKey))
 	})
 
 	It("attaches the machine deletion label to the node on machine deletion", func() {
@@ -104,14 +105,14 @@ var _ = Describe("The MachineReconciler", func() {
 			var result corev1.Node
 			g.Expect(workloadClient.Get(context.Background(), client.ObjectKeyFromObject(node), &result)).To(Succeed())
 			return result.Labels
-		}).Should(HaveKeyWithValue(management.MachineDeletedLabelKey, management.MachineDeletedLabelValue))
+		}).Should(HaveKeyWithValue(state.MachineDeletedLabelKey, state.MachineDeletedLabelValue))
 	})
 
 	When("the node is managed by the maintenance-controller", func() {
 
 		BeforeEach(func() {
 			originalNode := node.DeepCopy()
-			node.Labels = map[string]string{management.MaintenanceStateLabelKey: "operational"}
+			node.Labels = map[string]string{state.MaintenanceStateLabelKey: "operational"}
 			Expect(workloadClient.Patch(context.Background(), node, client.MergeFrom(originalNode))).To(Succeed())
 			// need to patch the machine to trigger a reconcile
 			originalMachine := machine.DeepCopy()

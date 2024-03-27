@@ -21,7 +21,8 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
-	"github.com/sapcc/runtime-extension-maintenance-controller/constants"
+	"github.com/sapcc/runtime-extension-maintenance-controller/clusters"
+	"github.com/sapcc/runtime-extension-maintenance-controller/state"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 	corev1_informers "k8s.io/client-go/informers/core/v1"
@@ -44,7 +45,7 @@ const (
 type NodeController struct {
 	log              logr.Logger
 	managementClient client.Client
-	connections      *ClusterConnections
+	connections      *clusters.Connections
 	queue            workqueue.RateLimitingInterface
 	cluster          types.NamespacedName
 }
@@ -52,7 +53,7 @@ type NodeController struct {
 type NodeControllerOptions struct {
 	Log              logr.Logger
 	ManagementClient client.Client
-	Connections      *ClusterConnections
+	Connections      *clusters.Connections
 	Cluster          types.NamespacedName
 }
 
@@ -129,22 +130,11 @@ func (c *NodeController) Run(ctx context.Context) {
 }
 
 func (c *NodeController) Reconcile(ctx context.Context, req ctrl.Request) error {
-	node, err := c.connections.GetNode(ctx, GetNodeParams{Cluster: c.cluster, Name: req.Name})
+	node, err := c.connections.GetNode(ctx, clusters.GetNodeParams{Cluster: c.cluster, Name: req.Name})
 	if err != nil {
 		return err
 	}
-	if node.Labels == nil {
-		node.Labels = make(map[string]string)
-	}
-	approved, ok := node.Labels[constants.ApproveDeletionLabelKey]
-	if !ok || approved != constants.ApproveDeletionLabelValue {
-		return nil
-	}
 
-	c.log.Info("machine deletion was approved", "node", node.Name)
-	if node.Annotations == nil {
-		node.Annotations = make(map[string]string)
-	}
 	machineName, ok := node.Annotations[clusterv1beta1.MachineAnnotation]
 	if !ok {
 		return fmt.Errorf("node %s is missing the %s annotation", node.Name, clusterv1beta1.MachineAnnotation)
@@ -158,7 +148,12 @@ func (c *NodeController) Reconcile(ctx context.Context, req ctrl.Request) error 
 	if err := c.managementClient.Get(ctx, machineKey, &machine); err != nil {
 		return err
 	}
-	originalMachine := machine.DeepCopy()
-	delete(machine.Annotations, constants.PreDrainDeleteHookAnnotationKey)
-	return c.managementClient.Patch(ctx, &machine, client.MergeFrom(originalMachine))
+
+	reconciler := state.Reconciler{
+		Log:              c.log,
+		ManagementClient: c.managementClient,
+		Connections:      c.connections,
+		Cluster:          c.cluster,
+	}
+	return reconciler.PatchState(ctx, &machine, node)
 }
