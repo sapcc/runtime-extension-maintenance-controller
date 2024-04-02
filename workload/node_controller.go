@@ -104,6 +104,30 @@ func (c *NodeController) AttachTo(nodeInformer corev1_informers.NodeInformer) er
 			c.queue.Done(key)
 		},
 	})
+	if err != nil {
+		return err
+	}
+	err = nodeInformer.Informer().SetWatchErrorHandler(func(r *cache.Reflector, err error) {
+		if err != nil {
+			return
+		}
+		if !errors.IsUnauthorized(err) {
+			c.log.Error(err, "failed to watch/list workload cluster nodes")
+			return
+		}
+		c.log.Info("auth expired on node informer")
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second) //nolint:gomnd
+		defer cancel()
+		err = c.connections.ReauthConn(ctx, clusters.ReauthParams{
+			Cluster: c.cluster,
+			Log:     c.log,
+		})
+		if err != nil {
+			c.log.Error(err, "failed to reauthenticate")
+			return
+		}
+		c.log.Info("reauthentication successful")
+	})
 	return err
 }
 

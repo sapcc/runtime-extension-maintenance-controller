@@ -145,6 +145,24 @@ func (cc *Connections) DeleteConn(log logr.Logger, cluster types.NamespacedName)
 	delete(cc.clusters, cluster)
 }
 
+type ReauthParams struct {
+	Cluster types.NamespacedName
+	Log     logr.Logger
+}
+
+func (cc *Connections) ReauthConn(ctx context.Context, params ReauthParams) error {
+	conn := cc.GetConn(params.Cluster)
+	params.Log.Info("trying reauth", "cluster", params.Cluster)
+	workloadClient, err := MakeClient(ctx, cc.managementClient, types.NamespacedName{})
+	if err != nil {
+		return err
+	}
+	attacher := conn.nodeAttacher
+	conn = NewConnection(workloadClient, attacher)
+	cc.AddConn(cc.makeContext(), params.Log, params.Cluster, conn)
+	return nil
+}
+
 type GetNodeParams struct {
 	Log     logr.Logger
 	Cluster types.NamespacedName
@@ -163,14 +181,12 @@ func (cc *Connections) GetNode(ctx context.Context, params GetNodeParams) (*core
 	if !errors.IsUnauthorized(err) {
 		return nil, err
 	}
-	params.Log.Info("authentication expired, trying reauth", "cluster", params.Cluster)
-	workloadClient, err := MakeClient(ctx, cc.managementClient, types.NamespacedName{})
-	if err != nil {
+	if err = cc.ReauthConn(ctx, ReauthParams{
+		Cluster: params.Cluster,
+		Log:     params.Log,
+	}); err != nil {
 		return nil, err
 	}
-	attacher := conn.nodeAttacher
-	conn = NewConnection(workloadClient, attacher)
-	cc.AddConn(cc.makeContext(), params.Log, params.Cluster, conn)
 	return conn.nodeInformer.Lister().Get(params.Name)
 }
 
@@ -199,14 +215,12 @@ func (cc *Connections) PatchNode(ctx context.Context, params PatchNodeParams) er
 	if !errors.IsUnauthorized(err) {
 		return err
 	}
-	params.Log.Info("authentication expired, trying reauth", "cluster", params.Cluster)
-	workloadClient, err := MakeClient(ctx, cc.managementClient, types.NamespacedName{})
-	if err != nil {
+	if err = cc.ReauthConn(ctx, ReauthParams{
+		Cluster: params.Cluster,
+		Log:     params.Log,
+	}); err != nil {
 		return err
 	}
-	attacher := conn.nodeAttacher
-	conn = NewConnection(workloadClient, attacher)
-	cc.AddConn(cc.makeContext(), params.Log, params.Cluster, conn)
 	_, err = conn.client.CoreV1().Nodes().Patch(
 		ctx,
 		params.Name,
