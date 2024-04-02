@@ -22,7 +22,6 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/sapcc/runtime-extension-maintenance-controller/constants"
-	"github.com/sapcc/runtime-extension-maintenance-controller/management"
 	"github.com/sapcc/runtime-extension-maintenance-controller/state"
 
 	corev1 "k8s.io/api/core/v1"
@@ -54,8 +53,8 @@ var _ = Describe("The MachineReconciler", func() {
 		machine.Name = machineName
 		machine.Namespace = metav1.NamespaceDefault
 		machine.Labels = map[string]string{
-			clusterv1beta1.ClusterNameLabel:          "management",
-			management.MaintenanceControllerLabelKey: management.MaintenanceControllerLabelValue,
+			clusterv1beta1.ClusterNameLabel: "management",
+			constants.EnabledLabelKey:       constants.EnabledLabelValue,
 		}
 		machine.Spec.ClusterName = "management"
 		Expect(managementClient.Create(context.Background(), machine)).To(Succeed())
@@ -139,6 +138,17 @@ var _ = Describe("The MachineReconciler", func() {
 			originalNode := node.DeepCopy()
 			node.Labels = map[string]string{constants.ApproveDeletionLabelKey: constants.ApproveDeletionLabelValue}
 			Expect(workloadClient.Patch(context.Background(), node, client.MergeFrom(originalNode))).To(Succeed())
+			Eventually(func(g Gomega) map[string]string {
+				var result clusterv1beta1.Machine
+				g.Expect(managementClient.Get(context.Background(), client.ObjectKeyFromObject(machine), &result)).To(Succeed())
+				return result.Annotations
+			}).ShouldNot(HaveKey(constants.PreDrainDeleteHookAnnotationKey))
+		})
+
+		It("removes the pre-drain hook when the controller is disabled", func() {
+			originalMachine := machine.DeepCopy()
+			delete(machine.Labels, constants.EnabledLabelKey)
+			Expect(managementClient.Patch(context.Background(), machine, client.MergeFrom(originalMachine))).To(Succeed())
 			Eventually(func(g Gomega) map[string]string {
 				var result clusterv1beta1.Machine
 				g.Expect(managementClient.Get(context.Background(), client.ObjectKeyFromObject(machine), &result)).To(Succeed())

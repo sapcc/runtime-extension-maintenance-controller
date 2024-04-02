@@ -42,17 +42,14 @@ func propagate(log logr.Logger, machine *clusterv1beta1.Machine, node *corev1.No
 		log.Info("machine has no nodeRef")
 		return
 	}
-	_, hasMaintenanceState := node.Labels[MaintenanceStateLabelKey]
 	if machine.Annotations == nil {
 		machine.Annotations = make(map[string]string)
 	}
 	if node.Labels == nil {
 		node.Labels = make(map[string]string)
 	}
-	approved, ok := node.Labels[constants.ApproveDeletionLabelKey]
-	// Add deletion hook to machines that have a noderef and the cloud.sap/maintenance-state label
-	// Remove deletion hooks from machines whose nodes don't have the cloud.sap/maintenance-state label
-	if hasMaintenanceState && (!ok || approved != constants.ApproveDeletionLabelValue) {
+
+	if needsPreDrainHook(machine, node) {
 		machine.Annotations[constants.PreDrainDeleteHookAnnotationKey] = constants.PreDrainDeleteHookAnnotationValue
 		log.Info("queueing pre-drain hook attachment")
 	} else {
@@ -60,14 +57,31 @@ func propagate(log logr.Logger, machine *clusterv1beta1.Machine, node *corev1.No
 		log.Info("queueing pre-drain hook removal")
 	}
 
-	// For to be deleted machines with hook deliver label onto the node (deletion timestamp)
-	if hasMaintenanceState && machine.DeletionTimestamp != nil {
+	if needsDeletionLabel(machine, node) {
 		node.Labels[MachineDeletedLabelKey] = MachineDeletedLabelValue
 		log.Info("queueing machine deletion label attachment")
 	} else {
 		delete(node.Labels, MachineDeletedLabelKey)
 		log.Info("queueing machine deletion label removal")
 	}
+}
+
+// Add pre-drain hook to machines that have a noderef and the cloud.sap/maintenance-state label.
+func needsPreDrainHook(machine *clusterv1beta1.Machine, node *corev1.Node) bool {
+	_, hasMaintenanceState := node.Labels[MaintenanceStateLabelKey]
+	approved, ok := node.Labels[constants.ApproveDeletionLabelKey]
+	isApproved := ok && approved == constants.ApproveDeletionLabelValue
+	enabledValue, ok := machine.Labels[constants.EnabledLabelKey]
+	isEnabled := ok && enabledValue == constants.EnabledLabelValue
+	return hasMaintenanceState && isEnabled && !isApproved
+}
+
+// For to be deleted machines with hook deliver label onto the node (deletion timestamp).
+func needsDeletionLabel(machine *clusterv1beta1.Machine, node *corev1.Node) bool {
+	_, hasMaintenanceState := node.Labels[MaintenanceStateLabelKey]
+	enabledValue, ok := machine.Labels[constants.EnabledLabelKey]
+	isEnabled := ok && enabledValue == constants.EnabledLabelValue
+	return hasMaintenanceState && isEnabled && machine.DeletionTimestamp != nil
 }
 
 type Reconciler struct {

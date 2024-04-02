@@ -32,11 +32,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 )
 
-const (
-	MaintenanceControllerLabelKey   string = "runtime-extension-maintenance-controller.cloud.sap/enabled"
-	MaintenanceControllerLabelValue string = "true"
-)
-
 type MachineReconciler struct {
 	client.Client
 	Log                     logr.Logger
@@ -60,12 +55,12 @@ func (r *MachineReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return ctrl.Result{}, err
 	}
 	clusterName := machine.Spec.ClusterName
-	isMaintenanceController, ok := machine.Labels[MaintenanceControllerLabelKey]
+	enabledValue, ok := machine.Labels[constants.EnabledLabelKey]
 	// It should be safe to only perform cleanup in the machine controller, when the following occurs:
 	// - The last relevant machine object is deleted, but cluster-api cleanup is blocked by pre-drain hook
 	// - cloud.sap/maintenance-controller label is removed on the node
 	// - This removes the pre-drain hook => causing reconciliation and cleanup
-	if !ok || isMaintenanceController != MaintenanceControllerLabelValue {
+	if !ok || enabledValue != constants.EnabledLabelValue {
 		return ctrl.Result{}, r.cleanupMachine(ctx, &machine, clusterName)
 	}
 	_, ok = r.WorkloadNodeControllers[clusterName]
@@ -110,13 +105,13 @@ func (r *MachineReconciler) cleanupMachine(ctx context.Context, machine *cluster
 	// cleanup pre-drain hook
 	delete(machine.Annotations, constants.PreDrainDeleteHookAnnotationKey)
 	if err := r.Client.Patch(ctx, machine, client.MergeFrom(original)); err != nil {
-		return fmt.Errorf("failed to remove pre-drain hook for machine %s", machine.Name)
+		return fmt.Errorf("failed to remove pre-drain hook for machine %s: %w", machine.Name, err)
 	}
 	r.Log.Info("removed pre-drain hook", "machine", machine.Name, "cluster", cluster)
 	// cleanup workload node reconciler, if no machine uses maintenance-controller
 	selector := client.MatchingLabels{
 		clusterv1beta1.ClusterNameLabel: cluster,
-		MaintenanceControllerLabelKey:   MaintenanceControllerLabelValue,
+		constants.EnabledLabelKey:       constants.EnabledLabelValue,
 	}
 	var machineList clusterv1beta1.MachineList
 	if err := r.Client.List(ctx, &machineList, selector); err != nil {

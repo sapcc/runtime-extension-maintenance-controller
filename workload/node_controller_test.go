@@ -50,6 +50,9 @@ var _ = Describe("The NodeController", func() {
 		machine = &clusterv1beta1.Machine{}
 		machine.Name = machineName
 		machine.Namespace = metav1.NamespaceDefault
+		machine.Labels = map[string]string{
+			constants.EnabledLabelKey: constants.EnabledLabelValue,
+		}
 		machine.Spec.ClusterName = "management"
 		Expect(managementClient.Create(context.Background(), machine)).To(Succeed())
 		machine.Status.NodeRef = &corev1.ObjectReference{
@@ -98,6 +101,28 @@ var _ = Describe("The NodeController", func() {
 		}).Should(HaveKeyWithValue(constants.PreDrainDeleteHookAnnotationKey, constants.PreDrainDeleteHookAnnotationValue))
 		originalNode = node.DeepCopy()
 		node.Labels[constants.ApproveDeletionLabelKey] = constants.ApproveDeletionLabelValue
+		Expect(workloadClient.Patch(context.Background(), node, client.MergeFrom(originalNode))).To(Succeed())
+		Eventually(func(g Gomega) map[string]string {
+			var result clusterv1beta1.Machine
+			g.Expect(managementClient.Get(context.Background(), client.ObjectKeyFromObject(machine), &result))
+			return result.Annotations
+		}).ShouldNot(HaveKey(constants.PreDrainDeleteHookAnnotationKey))
+	})
+
+	It("removes the pre-drain hook when the controller is disabled", func() {
+		originalNode := node.DeepCopy()
+		node.Labels = map[string]string{state.MaintenanceStateLabelKey: "whatever"}
+		Expect(workloadClient.Patch(context.Background(), node, client.MergeFrom(originalNode))).To(Succeed())
+		Eventually(func(g Gomega) map[string]string {
+			var result clusterv1beta1.Machine
+			g.Expect(managementClient.Get(context.Background(), client.ObjectKeyFromObject(machine), &result))
+			return result.Annotations
+		}).Should(HaveKeyWithValue(constants.PreDrainDeleteHookAnnotationKey, constants.PreDrainDeleteHookAnnotationValue))
+		originalMachine := machine.DeepCopy()
+		machine.Labels = map[string]string{}
+		Expect(managementClient.Patch(context.Background(), machine, client.MergeFrom(originalMachine))).To(Succeed())
+		originalNode = node.DeepCopy()
+		node.Labels = map[string]string{state.MaintenanceStateLabelKey: "banana"}
 		Expect(workloadClient.Patch(context.Background(), node, client.MergeFrom(originalNode))).To(Succeed())
 		Eventually(func(g Gomega) map[string]string {
 			var result clusterv1beta1.Machine
