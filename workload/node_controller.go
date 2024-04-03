@@ -108,7 +108,7 @@ func (c *NodeController) AttachTo(nodeInformer corev1_informers.NodeInformer) er
 		return err
 	}
 	err = nodeInformer.Informer().SetWatchErrorHandler(func(r *cache.Reflector, err error) {
-		if err != nil {
+		if err == nil {
 			return
 		}
 		if !errors.IsUnauthorized(err) {
