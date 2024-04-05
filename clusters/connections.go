@@ -153,7 +153,7 @@ type ReauthParams struct {
 func (cc *Connections) ReauthConn(ctx context.Context, params ReauthParams) error {
 	conn := cc.GetConn(params.Cluster)
 	params.Log.Info("trying reauth", "cluster", params.Cluster)
-	workloadClient, err := MakeClient(ctx, cc.managementClient, types.NamespacedName{})
+	workloadClient, err := MakeClient(ctx, cc.managementClient, params.Cluster)
 	if err != nil {
 		return err
 	}
