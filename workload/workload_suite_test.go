@@ -26,6 +26,7 @@ import (
 	"github.com/sapcc/runtime-extension-maintenance-controller/clusters"
 	"github.com/sapcc/runtime-extension-maintenance-controller/workload"
 	corev1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	corev1_informers "k8s.io/client-go/informers/core/v1"
@@ -49,6 +50,9 @@ var (
 	stopController   context.CancelFunc
 	workloadClient   client.Client
 	managementClient client.Client
+	connections      *clusters.Connections
+
+	extraKubeCfg []byte
 )
 
 var _ = BeforeSuite(func() {
@@ -60,11 +64,14 @@ var _ = BeforeSuite(func() {
 	Expect(corev1.AddToScheme(scheme.Scheme)).To(Succeed())
 	Expect(clusterv1beta1.AddToScheme(scheme.Scheme)).To(Succeed())
 
-	var err error
-
 	workloadCfg, err := workloadEnv.Start()
 	Expect(err).To(Succeed())
 	Expect(workloadCfg).ToNot(BeNil())
+
+	extraUser, err := workloadEnv.AddUser(envtest.User{Name: "extra", Groups: []string{}}, nil)
+	Expect(err).To(Succeed())
+	extraKubeCfg, err = extraUser.KubeConfig()
+	Expect(err).To(Succeed())
 
 	workloadClientset, err := kubernetes.NewForConfig(workloadCfg)
 	Expect(err).To(Succeed())
@@ -83,24 +90,43 @@ var _ = BeforeSuite(func() {
 	managementClient, err = client.New(managementCfg, client.Options{})
 	Expect(err).To(Succeed())
 
+	var clusterRoleBinding rbacv1.ClusterRoleBinding
+	clusterRoleBinding.Name = "extra-binding"
+	clusterRoleBinding.RoleRef = rbacv1.RoleRef{
+		APIGroup: rbacv1.SchemeGroupVersion.Group,
+		Kind:     "ClusterRole",
+		Name:     "cluster-admin",
+	}
+	clusterRoleBinding.Subjects = []rbacv1.Subject{
+		{
+			Kind:     "User",
+			Name:     "extra",
+			APIGroup: rbacv1.SchemeGroupVersion.Group,
+		},
+	}
+	Expect(workloadClient.Create(context.Background(), &clusterRoleBinding)).To(Succeed())
+
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 	stopController = cancel
 
 	clusterKey := types.NamespacedName{Namespace: metav1.NamespaceDefault, Name: "management"}
-	connections := clusters.NewConnections(managementClient, func() context.Context { return ctx })
+	connections = clusters.NewConnections(managementClient, func() context.Context { return ctx })
 	controller, err := workload.NewNodeController(workload.NodeControllerOptions{
 		Log:              GinkgoLogr,
 		ManagementClient: managementClient,
 		Connections:      connections,
 		Cluster:          clusterKey,
 	})
-	connections.AddConn(ctx, GinkgoLogr, clusterKey,
-		clusters.NewConnection(workloadClientset, func(ni corev1_informers.NodeInformer) {
-			Expect(controller.AttachTo(ni)).To(Succeed())
-		},
-		))
-
 	Expect(err).To(Succeed())
+	connections.AddConn(ctx, GinkgoLogr, clusterKey,
+		clusters.NewConnection(
+			workloadClientset,
+			func(ni corev1_informers.NodeInformer) {
+				Expect(controller.AttachTo(ni)).To(Succeed())
+			},
+		),
+	)
+
 	go func() {
 		controller.Run(ctx)
 	}()

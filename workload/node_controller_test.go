@@ -16,15 +16,18 @@ package workload_test
 
 import (
 	"context"
+	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"github.com/sapcc/runtime-extension-maintenance-controller/clusters"
 	"github.com/sapcc/runtime-extension-maintenance-controller/constants"
 	"github.com/sapcc/runtime-extension-maintenance-controller/state"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	clusterv1beta1 "sigs.k8s.io/cluster-api/api/v1beta1"
 )
 
@@ -130,5 +133,28 @@ var _ = Describe("The NodeController", func() {
 			return result.Annotations
 		}).ShouldNot(HaveKey(constants.PreDrainDeleteHookAnnotationKey))
 	})
+
+	// independent of this test the controllers informer still uses the original node informer
+	// with the original connection
+	It("can reauthenticate with different credentials", func(ctx SpecContext) {
+		var secret corev1.Secret
+		secret.Name = "management-kubeconfig"
+		secret.Namespace = metav1.NamespaceDefault
+		secret.Data = map[string][]byte{
+			"value": extraKubeCfg,
+		}
+		Expect(managementClient.Create(ctx, &secret)).To(Succeed())
+
+		cluster := types.NamespacedName{Namespace: metav1.NamespaceDefault, Name: "management"}
+		err := connections.ReauthConn(ctx, clusters.ReauthParams{
+			Cluster: cluster,
+			Log:     GinkgoLogr,
+		})
+		Expect(err).To(Succeed())
+		_, err = connections.GetNode(ctx, clusters.GetNodeParams{Log: GinkgoLogr, Cluster: cluster, Name: nodeName})
+		Expect(err).To(Succeed())
+
+		Expect(managementClient.Delete(ctx, &secret)).To(Succeed())
+	}, NodeTimeout(5*time.Second))
 
 })

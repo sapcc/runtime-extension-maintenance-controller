@@ -66,6 +66,7 @@ type Connection struct {
 	nodeInformer corev1_informers.NodeInformer
 	factory      informers.SharedInformerFactory
 	nodeAttacher func(ni corev1_informers.NodeInformer)
+	cancel       context.CancelFunc
 }
 
 // NewConnection creates a new connection to a workload cluster.
@@ -86,11 +87,14 @@ func (conn *Connection) Start(ctx context.Context) {
 	if conn.nodeAttacher != nil {
 		conn.nodeAttacher(conn.nodeInformer)
 	}
-	conn.factory.Start(ctx.Done())
-	conn.factory.WaitForCacheSync(ctx.Done())
+	cancelable, cancel := context.WithCancel(ctx)
+	conn.cancel = cancel
+	conn.factory.Start(cancelable.Done())
+	conn.factory.WaitForCacheSync(cancelable.Done())
 }
 
 func (conn *Connection) Shutdown() {
+	conn.cancel()
 	conn.factory.Shutdown()
 }
 
