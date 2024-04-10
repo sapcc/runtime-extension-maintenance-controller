@@ -49,6 +49,7 @@ type NodeController struct {
 	connections      *clusters.Connections
 	queue            workqueue.RateLimitingInterface
 	cluster          types.NamespacedName
+	reauthChan       chan struct{}
 }
 
 type NodeControllerOptions struct {
@@ -68,6 +69,7 @@ func NewNodeController(opts NodeControllerOptions) (NodeController, error) {
 		queue:            queue,
 		connections:      opts.Connections,
 		cluster:          opts.Cluster,
+		reauthChan:       make(chan struct{}),
 	}
 	return ctrl, nil
 }
@@ -116,22 +118,38 @@ func (c *NodeController) AttachTo(nodeInformer corev1_informers.NodeInformer) er
 			return
 		}
 		c.log.Info("auth expired on node informer")
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second) //nolint:gomnd
-		defer cancel()
-		err = c.connections.ReauthConn(ctx, clusters.ReauthParams{
-			Cluster: c.cluster,
-			Log:     c.log,
-		})
-		if err != nil {
-			c.log.Error(err, "failed to reauthenticate")
-			return
-		}
-		c.log.Info("reauthentication successful")
+		// ReauthConn needs to be moved to another goroutine
+		// because within the handler the reflector goroutine
+		// needs to termiante for inforerFactory.Shutdown() to
+		// unblock, which ReauthConn would call causing a deadlock.
+		c.reauthChan <- struct{}{}
 	})
 	return err
 }
 
+func (c *NodeController) reauth(ctx context.Context) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-c.reauthChan:
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second) //nolint:gomnd
+			defer cancel()
+			err := c.connections.ReauthConn(ctx, clusters.ReauthParams{
+				Cluster: c.cluster,
+				Log:     c.log,
+			})
+			if err != nil {
+				c.log.Error(err, "failed to reauthenticate")
+				return
+			}
+			c.log.Info("reauthentication successful")
+		}
+	}
+}
+
 func (c *NodeController) Run(ctx context.Context) {
+	go c.reauth(ctx)
 	defer c.queue.ShutDown()
 	go func() {
 		for {
@@ -152,6 +170,7 @@ func (c *NodeController) Run(ctx context.Context) {
 		}
 	}()
 	<-ctx.Done()
+	close(c.reauthChan)
 }
 
 func (c *NodeController) Reconcile(ctx context.Context, req ctrl.Request) error {
