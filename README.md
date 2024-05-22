@@ -20,5 +20,7 @@ This label should be used to trigger the maintenance-controller in the workload 
 The `runtime-extension-maintenance-controller.cloud.sap/approve-deletion: "true"` label shoud be used by the maintenance-controller to notify the runtime-extension, that the node is ready to be removed.
 After attaching the approve-deletion label the pre-drain hook will be removed, which allows machine deletion to continue.
 
+![Workflow](docs/flow.drawio.png)
+
 ## Installation
 A Helm chart is available [here](https://github.com/sapcc/helm-charts/tree/master/system/runtime-extension-maintenance-controller).
