@@ -29,7 +29,7 @@ install-setup-envtest: FORCE
 	@if ! hash setup-envtest 2>/dev/null; then printf "\e[1;36m>> Installing setup-envtest...\e[0m\n"; go install sigs.k8s.io/controller-runtime/tools/setup-envtest@latest; fi
 
 install-ginkgo: FORCE
-	@if ! hash ginkgo 2>/dev/null; then printf "\e[1;36m>> Installing ginkgo...\e[0m\n"; go install github.com/onsi/ginkgo/v2/ginkgo; fi
+	@if ! hash ginkgo 2>/dev/null; then printf "\e[1;36m>> Installing ginkgo...\e[0m\n"; go install github.com/onsi/ginkgo/v2/ginkgo@latest; fi
 
 GO_BUILDFLAGS =
 GO_LDFLAGS =
@@ -54,6 +54,9 @@ install: FORCE build/runtime-extension-maintenance-controller
 
 # which packages to test with test runner
 GO_TESTPKGS := $(shell go list -f '{{if or .TestGoFiles .XTestGoFiles}}{{.Dir}}{{end}}' ./...)
+ifeq ($(GO_TESTPKGS),)
+GO_TESTPKGS := ./...
+endif
 # which packages to measure coverage for
 GO_COVERPKGS := $(shell go list ./...)
 # to get around weird Makefile syntax restrictions, we need variables containing nothing, a space and comma
