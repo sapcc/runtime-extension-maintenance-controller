@@ -21,4 +21,7 @@ const (
 	EnabledLabelValue                 string = "true"
 	PreDrainDeleteHookAnnotationKey   string = "pre-drain.delete.hook.machine.cluster.x-k8s.io/maintenance-controller"
 	PreDrainDeleteHookAnnotationValue string = "runtime-extension-maintenance-controller"
+	MaintenanceLabelKey               string = "runtime-extension-maintenance-controller.cloud.sap/maintenance"
+	MaintenanceLabelRequested         string = "requested"
+	MaintenanceLabelApproved          string = "approved"
 )

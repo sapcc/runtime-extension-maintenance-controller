@@ -31,8 +31,13 @@ import (
 
 const (
 	MaintenanceStateLabelKey string = "cloud.sap/maintenance-state"
-	MachineDeletedLabelKey   string = "runtime-extension-maintenance-controller.cloud.sap/machine-deleted"
-	MachineDeletedLabelValue string = "true"
+
+	MachineDeletedLabelKey       string = "runtime-extension-maintenance-controller.cloud.sap/machine-deleted"
+	MachineDeletedLabelValue     string = "true"
+	MachineMaintenanceLabelKey   string = "runtime-extension-maintenance-controller.cloud.sap/machine-maintenance"
+	MachineMaintenanceLabelValue string = "true"
+	ApproveMaintenanceLabelKey   string = "runtime-extension-maintenance-controller.cloud.sap/approve-maintenance"
+	ApproveMaintenanceLabelValue string = "true"
 )
 
 // Is currently invoked in parallel by management and workload controller.
@@ -49,7 +54,7 @@ func propagate(log logr.Logger, machine *clusterv1beta1.Machine, node *corev1.No
 		node.Labels = make(map[string]string)
 	}
 
-	if needsPreDrainHook(machine, node) {
+	if machineRequiresPreDrainHook(machine, node) {
 		machine.Annotations[constants.PreDrainDeleteHookAnnotationKey] = constants.PreDrainDeleteHookAnnotationValue
 		log.Info("queueing pre-drain hook attachment")
 	} else {
@@ -57,17 +62,31 @@ func propagate(log logr.Logger, machine *clusterv1beta1.Machine, node *corev1.No
 		log.Info("queueing pre-drain hook removal")
 	}
 
-	if needsDeletionLabel(machine, node) {
+	if nodeRequiresDeletionLabel(machine, node) {
 		node.Labels[MachineDeletedLabelKey] = MachineDeletedLabelValue
-		log.Info("queueing machine deletion label attachment")
+		log.Info("queueing node machine deletion label attachment")
 	} else {
 		delete(node.Labels, MachineDeletedLabelKey)
-		log.Info("queueing machine deletion label removal")
+		log.Info("queueing node machine deletion label removal")
+	}
+
+	if nodeRequiresMaintenanceLabel(machine, node) {
+		node.Labels[MachineMaintenanceLabelKey] = MachineMaintenanceLabelValue
+		log.Info("queueing node machine maintenance label attachment")
+	} else {
+		delete(node.Labels, MachineMaintenanceLabelKey)
+		log.Info("queueing node machine maintenance label removal")
+	}
+
+	if machineRequiresMaintenanceApproved(machine, node) {
+		// An external controller is expected to act on and delete this label
+		machine.Labels[constants.MaintenanceLabelKey] = constants.MaintenanceLabelApproved
+		log.Info("queueing machine maintenance label approval attachment")
 	}
 }
 
 // Add pre-drain hook to machines that have a noderef and the cloud.sap/maintenance-state label.
-func needsPreDrainHook(machine *clusterv1beta1.Machine, node *corev1.Node) bool {
+func machineRequiresPreDrainHook(machine *clusterv1beta1.Machine, node *corev1.Node) bool {
 	_, hasMaintenanceState := node.Labels[MaintenanceStateLabelKey]
 	approved, ok := node.Labels[constants.ApproveDeletionLabelKey]
 	isApproved := ok && approved == constants.ApproveDeletionLabelValue
@@ -77,11 +96,32 @@ func needsPreDrainHook(machine *clusterv1beta1.Machine, node *corev1.Node) bool 
 }
 
 // For to be deleted machines with hook deliver label onto the node (deletion timestamp).
-func needsDeletionLabel(machine *clusterv1beta1.Machine, node *corev1.Node) bool {
+func nodeRequiresDeletionLabel(machine *clusterv1beta1.Machine, node *corev1.Node) bool {
 	_, hasMaintenanceState := node.Labels[MaintenanceStateLabelKey]
 	enabledValue, ok := machine.Labels[constants.EnabledLabelKey]
 	isEnabled := ok && enabledValue == constants.EnabledLabelValue
 	return hasMaintenanceState && isEnabled && machine.DeletionTimestamp != nil
+}
+
+func nodeRequiresMaintenanceLabel(machine *clusterv1beta1.Machine, node *corev1.Node) bool {
+	_, hasMaintenanceState := node.Labels[MaintenanceStateLabelKey]
+	enabledValue, ok := machine.Labels[constants.EnabledLabelKey]
+	isEnabled := ok && enabledValue == constants.EnabledLabelValue
+	maintenanceValue, ok := machine.Labels[constants.MaintenanceLabelKey]
+	isRequested := ok &&
+		(maintenanceValue == constants.MaintenanceLabelRequested || maintenanceValue == constants.MaintenanceLabelApproved)
+	return hasMaintenanceState && isEnabled && isRequested
+}
+
+func machineRequiresMaintenanceApproved(machine *clusterv1beta1.Machine, node *corev1.Node) bool {
+	_, hasMaintenanceState := node.Labels[MaintenanceStateLabelKey]
+	enabledValue, ok := machine.Labels[constants.EnabledLabelKey]
+	isEnabled := ok && enabledValue == constants.EnabledLabelValue
+	approveValue, ok := node.Labels[ApproveMaintenanceLabelKey]
+	isApproved := ok && approveValue == ApproveMaintenanceLabelValue
+	maintenanceValue, ok := machine.Labels[constants.MaintenanceLabelKey]
+	isRequested := ok && maintenanceValue == constants.MaintenanceLabelRequested
+	return hasMaintenanceState && isEnabled && isRequested && isApproved
 }
 
 type Reconciler struct {

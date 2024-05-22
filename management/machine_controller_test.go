@@ -156,6 +156,58 @@ var _ = Describe("The MachineReconciler", func() {
 			}).ShouldNot(HaveKey(constants.PreDrainDeleteHookAnnotationKey))
 		})
 
+		It("attaches the machine maintenance label to the node on maintenance request", func(ctx SpecContext) {
+			originalMachine := machine.DeepCopy()
+			machine.Labels[constants.MaintenanceLabelKey] = constants.MaintenanceLabelRequested
+			Expect(managementClient.Patch(ctx, machine, client.MergeFrom(originalMachine))).To(Succeed())
+
+			Eventually(func(g Gomega) map[string]string {
+				var result corev1.Node
+				g.Expect(workloadClient.Get(ctx, client.ObjectKeyFromObject(node), &result)).To(Succeed())
+				return result.Labels
+			}).Should(HaveKeyWithValue(state.MachineMaintenanceLabelKey, state.MachineMaintenanceLabelValue))
+		})
+
+		It("updates the machine maintenance label once the maintenance is approved in the node", func(ctx SpecContext) {
+			originalMachine := machine.DeepCopy()
+			machine.Labels[constants.MaintenanceLabelKey] = constants.MaintenanceLabelRequested
+			Expect(managementClient.Patch(ctx, machine, client.MergeFrom(originalMachine))).To(Succeed())
+
+			orginalNode := node.DeepCopy()
+			node.Labels[state.ApproveMaintenanceLabelKey] = state.ApproveMaintenanceLabelValue
+			Expect(workloadClient.Patch(ctx, node, client.MergeFrom(orginalNode))).To(Succeed())
+
+			Eventually(func(g Gomega) map[string]string {
+				var result clusterv1beta1.Machine
+				g.Expect(managementClient.Get(ctx, client.ObjectKeyFromObject(machine), &result)).To(Succeed())
+				return result.Labels
+			}).Should(HaveKeyWithValue(constants.MaintenanceLabelKey, constants.MaintenanceLabelApproved))
+		})
+
+		It("removes the machine maintenance label from the node on deletion of maintenance request", func(ctx SpecContext) {
+			originalMachine := machine.DeepCopy()
+			machine.Labels[constants.MaintenanceLabelKey] = constants.MaintenanceLabelRequested
+			Expect(managementClient.Patch(ctx, machine, client.MergeFrom(originalMachine))).To(Succeed())
+
+			Eventually(func(g Gomega) map[string]string {
+				var result corev1.Node
+				g.Expect(workloadClient.Get(ctx, client.ObjectKeyFromObject(node), &result)).To(Succeed())
+				return result.Labels
+			}).Should(HaveKeyWithValue(state.MachineMaintenanceLabelKey, state.MachineMaintenanceLabelValue))
+
+			var patchedMachine clusterv1beta1.Machine
+			Expect(managementClient.Get(ctx, client.ObjectKeyFromObject(machine), &patchedMachine)).To(Succeed())
+			readyMachine := patchedMachine.DeepCopy()
+			delete(readyMachine.Labels, constants.MaintenanceLabelKey)
+			Expect(managementClient.Patch(ctx, readyMachine, client.MergeFrom(&patchedMachine))).To(Succeed())
+
+			Eventually(func(g Gomega) map[string]string {
+				var result corev1.Node
+				g.Expect(workloadClient.Get(ctx, client.ObjectKeyFromObject(node), &result)).To(Succeed())
+				return result.Labels
+			}).ShouldNot(HaveKey(state.MachineMaintenanceLabelKey))
+		})
+
 	})
 
 })
