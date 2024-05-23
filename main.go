@@ -74,7 +74,7 @@ func main() {
 
 	ctx := ctrl.SetupSignalHandler()
 	connections := clusters.NewConnections(mgr.GetClient(), func() context.Context { return ctx })
-	err = (&management.MachineReconciler{
+	if err := (&management.MachineReconciler{
 		Client:                  mgr.GetClient(),
 		Log:                     ctrl.Log.WithName("management"),
 		WorkloadNodeControllers: map[string]*workload.NodeController{},
@@ -83,18 +83,17 @@ func main() {
 			return ctx
 		},
 		ClusterConnections: connections,
-	}).SetupWithManager(mgr)
-	if err != nil {
+	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create machine management controller")
 		os.Exit(1)
 	}
 
 	if metal3Integration {
-		err = (&metal3.MachineReconciler{
+		setupLog.Info("metal3 maintenance integration is enabled")
+		if err := (&metal3.MachineReconciler{
 			Client: mgr.GetClient(),
 			Log:    ctrl.Log.WithName("metal3"),
-		}).SetupWithManager(mgr)
-		if err != nil {
+		}).SetupWithManager(mgr); err != nil {
 			setupLog.Error(err, "unable to create machine metal3 controller")
 			os.Exit(1)
 		}
