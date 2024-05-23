@@ -21,6 +21,7 @@ import (
 
 	"github.com/sapcc/runtime-extension-maintenance-controller/clusters"
 	"github.com/sapcc/runtime-extension-maintenance-controller/management"
+	"github.com/sapcc/runtime-extension-maintenance-controller/metal3"
 	"github.com/sapcc/runtime-extension-maintenance-controller/workload"
 	"go.uber.org/zap/zapcore"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -46,11 +47,13 @@ func init() {
 
 func main() {
 	var kubecontext string
+	var metal3Integration bool
 	opts := zap.Options{
 		Development: true,
 		TimeEncoder: zapcore.ISO8601TimeEncoder,
 	}
 	flag.StringVar(&kubecontext, "kubecontext", "", "The context to use from the kubeconfig (defaults to current-context)")
+	flag.BoolVar(&metal3Integration, "enable-metal3-maintenance", false, "Enables an additional controller that manages reboot annotations on metal3 BareMetalHost objects")
 	opts.BindFlags(flag.CommandLine)
 	flag.Parse()
 
@@ -81,8 +84,19 @@ func main() {
 		ClusterConnections: connections,
 	}).SetupWithManager(mgr)
 	if err != nil {
-		setupLog.Error(err, "unable to create machine controller")
+		setupLog.Error(err, "unable to create machine management controller")
 		os.Exit(1)
+	}
+
+	if metal3Integration {
+		err = (&metal3.MachineReconciler{
+			Client: mgr.GetClient(),
+			Log:    ctrl.Log.WithName("metal3"),
+		}).SetupWithManager(mgr)
+		if err != nil {
+			setupLog.Error(err, "unable to create machine metal3 controller")
+			os.Exit(1)
+		}
 	}
 
 	setupLog.Info("starting manager")
