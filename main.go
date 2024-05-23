@@ -53,7 +53,8 @@ func main() {
 		TimeEncoder: zapcore.ISO8601TimeEncoder,
 	}
 	flag.StringVar(&kubecontext, "kubecontext", "", "The context to use from the kubeconfig (defaults to current-context)")
-	flag.BoolVar(&metal3Integration, "enable-metal3-maintenance", false, "Enables an additional controller that manages reboot annotations on metal3 BareMetalHost objects")
+	flag.BoolVar(&metal3Integration, "enable-metal3-maintenance", false,
+		"Enables an additional controller that manages reboot annotations on metal3 BareMetalHost objects")
 	opts.BindFlags(flag.CommandLine)
 	flag.Parse()
 
