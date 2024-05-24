@@ -178,9 +178,10 @@ func (cc *Connections) GetNode(ctx context.Context, params GetNodeParams) (*core
 	if conn == nil {
 		return nil, fmt.Errorf("no connection for cluster %s", params.Cluster)
 	}
+	// Get returns a pointer that is to treated as read-only, so copy it to allow mutation for consumers
 	node, err := conn.nodeInformer.Lister().Get(params.Name)
 	if err == nil {
-		return node, nil
+		return node.DeepCopy(), nil
 	}
 	if !errors.IsUnauthorized(err) {
 		return nil, err
@@ -191,7 +192,12 @@ func (cc *Connections) GetNode(ctx context.Context, params GetNodeParams) (*core
 	}); err != nil {
 		return nil, err
 	}
-	return conn.nodeInformer.Lister().Get(params.Name)
+	node, err = conn.nodeInformer.Lister().Get(params.Name)
+	if err != nil {
+		return nil, err
+	}
+	// Get returns a pointer that is to treated as read-only, so copy it to allow mutation for consumers
+	return node.DeepCopy(), nil
 }
 
 type PatchNodeParams struct {
