@@ -21,8 +21,6 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
-	"github.com/sapcc/runtime-extension-maintenance-controller/clusters"
-	"github.com/sapcc/runtime-extension-maintenance-controller/state"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
@@ -32,6 +30,9 @@ import (
 	clusterv1beta1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/sapcc/runtime-extension-maintenance-controller/clusters"
+	"github.com/sapcc/runtime-extension-maintenance-controller/state"
 )
 
 const (
@@ -63,7 +64,7 @@ func NewNodeController(opts NodeControllerOptions) (NodeController, error) {
 	// shared informers are not shared for WorkloadNodeControllers
 	// as nodes from different clusters may end up in the shared cache
 	queue := workqueue.NewRateLimitingQueue(workqueue.NewItemExponentialFailureRateLimiter(baseDelay, maxDelay))
-	ctrl := NodeController{
+	controller := NodeController{
 		log:              opts.Log.WithValues("cluster", opts.Cluster.String()),
 		managementClient: opts.ManagementClient,
 		queue:            queue,
@@ -71,7 +72,7 @@ func NewNodeController(opts NodeControllerOptions) (NodeController, error) {
 		cluster:          opts.Cluster,
 		reauthChan:       make(chan struct{}),
 	}
-	return ctrl, nil
+	return controller, nil
 }
 
 func (c *NodeController) AttachTo(nodeInformer corev1_informers.NodeInformer) error {

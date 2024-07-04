@@ -29,7 +29,7 @@ import (
 	corev1_informers "k8s.io/client-go/informers/core/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
-	"sigs.k8s.io/controller-runtime/pkg/client"
+	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 // The purpose of the Connection and ClusterConnections types is to manage
@@ -38,7 +38,7 @@ import (
 // MakeClient creates a kubernetes client for the given workload cluster.
 // The client is created using the kubeconfig secret of the workload cluster,
 // which is fetched from the management cluster using client.
-func MakeClient(ctx context.Context, client client.Client, cluster types.NamespacedName) (kubernetes.Interface, error) {
+func MakeClient(ctx context.Context, client ctrlclient.Client, cluster types.NamespacedName) (kubernetes.Interface, error) {
 	secretKey := types.NamespacedName{Namespace: cluster.Namespace, Name: cluster.Name + "-kubeconfig"}
 	var kubeConfigSecret corev1.Secret
 	if err := client.Get(ctx, secretKey, &kubeConfigSecret); err != nil {
@@ -104,11 +104,11 @@ func (conn *Connection) Shutdown() {
 type Connections struct {
 	clusters         map[types.NamespacedName]*Connection
 	mutex            sync.Mutex
-	managementClient client.Client
+	managementClient ctrlclient.Client
 	makeContext      func() context.Context
 }
 
-func NewConnections(client client.Client, contextFactory func() context.Context) *Connections {
+func NewConnections(client ctrlclient.Client, contextFactory func() context.Context) *Connections {
 	return &Connections{
 		clusters:         make(map[types.NamespacedName]*Connection),
 		mutex:            sync.Mutex{},

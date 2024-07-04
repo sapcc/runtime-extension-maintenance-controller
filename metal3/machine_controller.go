@@ -16,18 +16,19 @@ package metal3
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"strings"
 
 	"github.com/go-logr/logr"
-	"github.com/sapcc/runtime-extension-maintenance-controller/constants"
-	"k8s.io/apimachinery/pkg/api/errors"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	clusterv1beta1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
+
+	"github.com/sapcc/runtime-extension-maintenance-controller/constants"
 )
 
 const (
@@ -50,7 +51,7 @@ type MachineReconciler struct {
 func (r *MachineReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	var machine clusterv1beta1.Machine
 	err := r.Client.Get(ctx, req.NamespacedName, &machine)
-	if errors.IsNotFound(err) {
+	if apierrors.IsNotFound(err) {
 		r.Log.Info("failed to get machine, was it deleted?", "machine", req.String())
 		return ctrl.Result{}, nil
 	}
@@ -64,7 +65,7 @@ func (r *MachineReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	}
 	err = r.Client.Get(ctx, client.ObjectKeyFromObject(baremetalHost), baremetalHost)
 	originalBaremetalHost := baremetalHost.DeepCopy()
-	if errors.IsNotFound(err) {
+	if apierrors.IsNotFound(err) {
 		r.Log.Info("failed to get baremetalhost, was it deleted?", "baremetalhost", baremetalHost.GetName())
 		return ctrl.Result{}, nil
 	}
@@ -90,14 +91,14 @@ func (r *MachineReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 func hostFromProviderID(providerID *string) (*unstructured.Unstructured, error) {
 	if providerID == nil {
-		return nil, fmt.Errorf("machine has no providerID")
+		return nil, errors.New("machine has no providerID")
 	}
 	providerParts := strings.Split(*providerID, "/")
 	if providerParts[0] != "metal3:" {
-		return nil, fmt.Errorf("machine is not managed by metal3")
+		return nil, errors.New("machine is not managed by metal3")
 	}
 	if len(providerParts) < baremetalHostNameIndex+1 {
-		return nil, fmt.Errorf("machine providerID is malformed")
+		return nil, errors.New("machine providerID is malformed")
 	}
 	baremetalHost := &unstructured.Unstructured{}
 	baremetalHost.SetName(providerParts[baremetalHostNameIndex])

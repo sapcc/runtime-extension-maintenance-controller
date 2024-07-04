@@ -23,9 +23,6 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	"github.com/sapcc/runtime-extension-maintenance-controller/clusters"
-	"github.com/sapcc/runtime-extension-maintenance-controller/management"
-	"github.com/sapcc/runtime-extension-maintenance-controller/workload"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/scheme"
@@ -39,6 +36,10 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
+
+	maintclusters "github.com/sapcc/runtime-extension-maintenance-controller/clusters"
+	"github.com/sapcc/runtime-extension-maintenance-controller/management"
+	"github.com/sapcc/runtime-extension-maintenance-controller/workload"
 )
 
 func TestManagement(t *testing.T) {
@@ -133,7 +134,7 @@ var _ = BeforeSuite(func() {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 	stopController = cancel
 
-	connections := clusters.NewConnections(managementClient, func() context.Context { return ctx })
+	connections := maintclusters.NewConnections(managementClient, func() context.Context { return ctx })
 	err = (&management.MachineReconciler{
 		Client:                  managementClient,
 		Log:                     GinkgoLogr,
@@ -147,7 +148,8 @@ var _ = BeforeSuite(func() {
 	Expect(err).To(Succeed())
 
 	go func() {
-		_ = k8sManager.Start(ctx)
+		err = k8sManager.Start(ctx)
+		Expect(err).To(Succeed())
 	}()
 })
 

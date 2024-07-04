@@ -23,7 +23,6 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	"github.com/sapcc/runtime-extension-maintenance-controller/metal3"
 	"k8s.io/client-go/kubernetes/scheme"
 	clusterv1beta1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -32,6 +31,8 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
+
+	"github.com/sapcc/runtime-extension-maintenance-controller/metal3"
 )
 
 func TestMetal3(t *testing.T) {
@@ -80,7 +81,8 @@ var _ = BeforeSuite(func() {
 	Expect(err).To(Succeed())
 
 	go func() {
-		_ = k8sManager.Start(ctx)
+		err = k8sManager.Start(ctx)
+		Expect(err).To(Succeed())
 	}()
 })
 
