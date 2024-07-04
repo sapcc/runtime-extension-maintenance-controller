@@ -68,7 +68,7 @@ func (r *MachineReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	clusterKey := types.NamespacedName{Namespace: machine.Namespace, Name: clusterName}
 	if !ok {
 		workloadCtx, cancel := context.WithCancel(r.WorkloadContextFunc())
-		workloadController, err := makeNodeCtrl(ctx, NodeControllerParamaters{
+		workloadController, err := makeNodeCtrl(ctx, workloadCtx, NodeControllerParamaters{
 			cluster:          clusterKey,
 			managementClient: r.Client,
 			log:              ctrl.Log.WithName("workload").WithValues("cluster", clusterKey.String()),
@@ -149,7 +149,7 @@ type NodeControllerParamaters struct {
 
 // RBAC-Limited kubeconfigs are currently not possible: https://github.com/kubernetes-sigs/cluster-api/issues/5553
 // and https://github.com/kubernetes-sigs/cluster-api/issues/3661
-func makeNodeCtrl(ctx context.Context, params NodeControllerParamaters) (*workload.NodeController, error) {
+func makeNodeCtrl(mainCtx, workloadCtx context.Context, params NodeControllerParamaters) (*workload.NodeController, error) {
 	controller, err := workload.NewNodeController(workload.NodeControllerOptions{
 		Log:              params.log,
 		ManagementClient: params.managementClient,
@@ -159,7 +159,7 @@ func makeNodeCtrl(ctx context.Context, params NodeControllerParamaters) (*worklo
 	if err != nil {
 		return nil, err
 	}
-	workloadClient, err := clusters.MakeClient(ctx, params.managementClient, params.cluster)
+	workloadClient, err := clusters.MakeClient(mainCtx, params.managementClient, params.cluster)
 	if err != nil {
 		return nil, fmt.Errorf(
 			"failed to initialize node controller for workload cluster %s: %w",
@@ -176,7 +176,7 @@ func makeNodeCtrl(ctx context.Context, params NodeControllerParamaters) (*worklo
 			}
 		},
 	)
-	params.connections.AddConn(ctx, params.log, params.cluster, conn)
+	params.connections.AddConn(workloadCtx, params.log, params.cluster, conn)
 	return &controller, nil
 }
 
