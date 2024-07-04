@@ -11,13 +11,20 @@ binaries:
 golang:
   setGoModVersion: true
 
+golangciLint:
+  createConfig: true
+
 githubWorkflow:
+  ci:
+    enabled: true
   global:
     defaultBranch: master
-  license:
-    enabled: true
-  securityChecks:
-    enabled: true
+
+renovate:
+  enabled: true
+  assignees:
+    - Nuckal777
+    - SuperSandro2000
 
 verbatim: |
   fly:
