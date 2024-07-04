@@ -37,7 +37,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
-	maintclusters "github.com/sapcc/runtime-extension-maintenance-controller/clusters"
+	"github.com/sapcc/runtime-extension-maintenance-controller/clusters"
 	"github.com/sapcc/runtime-extension-maintenance-controller/management"
 	"github.com/sapcc/runtime-extension-maintenance-controller/workload"
 )
@@ -57,8 +57,8 @@ var (
 )
 
 func KubeconfigForRestConfig(restConfig *rest.Config) ([]byte, error) {
-	clusters := make(map[string]*clientcmdapi.Cluster)
-	clusters["default-cluster"] = &clientcmdapi.Cluster{
+	clusterMap := make(map[string]*clientcmdapi.Cluster)
+	clusterMap["default-cluster"] = &clientcmdapi.Cluster{
 		Server:                   restConfig.Host,
 		CertificateAuthorityData: restConfig.CAData,
 	}
@@ -75,7 +75,7 @@ func KubeconfigForRestConfig(restConfig *rest.Config) ([]byte, error) {
 	clientConfig := clientcmdapi.Config{
 		Kind:           "Config",
 		APIVersion:     "v1",
-		Clusters:       clusters,
+		Clusters:       clusterMap,
 		Contexts:       contexts,
 		CurrentContext: "default-context",
 		AuthInfos:      authinfos,
@@ -134,7 +134,7 @@ var _ = BeforeSuite(func() {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 	stopController = cancel
 
-	connections := maintclusters.NewConnections(managementClient, func() context.Context { return ctx })
+	connections := clusters.NewConnections(managementClient, func() context.Context { return ctx })
 	err = (&management.MachineReconciler{
 		Client:                  managementClient,
 		Log:                     GinkgoLogr,
