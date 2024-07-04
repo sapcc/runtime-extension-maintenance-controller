@@ -20,10 +20,11 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+
 	"github.com/sapcc/runtime-extension-maintenance-controller/clusters"
 	"github.com/sapcc/runtime-extension-maintenance-controller/constants"
 	"github.com/sapcc/runtime-extension-maintenance-controller/state"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -78,7 +79,7 @@ var _ = Describe("The NodeController", func() {
 		Expect(workloadClient.Patch(context.Background(), node, client.MergeFrom(originalNode))).To(Succeed())
 		Eventually(func(g Gomega) map[string]string {
 			var result clusterv1beta1.Machine
-			g.Expect(managementClient.Get(context.Background(), client.ObjectKeyFromObject(machine), &result))
+			g.Expect(managementClient.Get(context.Background(), client.ObjectKeyFromObject(machine), &result)).To(Succeed())
 			return result.Annotations
 		}).Should(HaveKeyWithValue(constants.PreDrainDeleteHookAnnotationKey, constants.PreDrainDeleteHookAnnotationValue))
 	})
@@ -89,7 +90,7 @@ var _ = Describe("The NodeController", func() {
 		Expect(workloadClient.Patch(context.Background(), node, client.MergeFrom(originalNode))).To(Succeed())
 		Eventually(func(g Gomega) map[string]string {
 			var result clusterv1beta1.Machine
-			g.Expect(managementClient.Get(context.Background(), client.ObjectKeyFromObject(machine), &result))
+			g.Expect(managementClient.Get(context.Background(), client.ObjectKeyFromObject(machine), &result)).To(Succeed())
 			return result.Annotations
 		}).Should(HaveKeyWithValue(constants.PreDrainDeleteHookAnnotationKey, constants.PreDrainDeleteHookAnnotationValue))
 		originalMachine := machine.DeepCopy()
@@ -99,7 +100,7 @@ var _ = Describe("The NodeController", func() {
 		Expect(managementClient.Patch(context.Background(), machine, client.MergeFrom(originalMachine))).To(Succeed())
 		Consistently(func(g Gomega) map[string]string {
 			var result clusterv1beta1.Machine
-			g.Expect(managementClient.Get(context.Background(), client.ObjectKeyFromObject(machine), &result))
+			g.Expect(managementClient.Get(context.Background(), client.ObjectKeyFromObject(machine), &result)).To(Succeed())
 			return result.Annotations
 		}).Should(HaveKeyWithValue(constants.PreDrainDeleteHookAnnotationKey, constants.PreDrainDeleteHookAnnotationValue))
 		originalNode = node.DeepCopy()
@@ -107,7 +108,7 @@ var _ = Describe("The NodeController", func() {
 		Expect(workloadClient.Patch(context.Background(), node, client.MergeFrom(originalNode))).To(Succeed())
 		Eventually(func(g Gomega) map[string]string {
 			var result clusterv1beta1.Machine
-			g.Expect(managementClient.Get(context.Background(), client.ObjectKeyFromObject(machine), &result))
+			g.Expect(managementClient.Get(context.Background(), client.ObjectKeyFromObject(machine), &result)).To(Succeed())
 			return result.Annotations
 		}).ShouldNot(HaveKey(constants.PreDrainDeleteHookAnnotationKey))
 	})
@@ -118,7 +119,7 @@ var _ = Describe("The NodeController", func() {
 		Expect(workloadClient.Patch(context.Background(), node, client.MergeFrom(originalNode))).To(Succeed())
 		Eventually(func(g Gomega) map[string]string {
 			var result clusterv1beta1.Machine
-			g.Expect(managementClient.Get(context.Background(), client.ObjectKeyFromObject(machine), &result))
+			g.Expect(managementClient.Get(context.Background(), client.ObjectKeyFromObject(machine), &result)).To(Succeed())
 			return result.Annotations
 		}).Should(HaveKeyWithValue(constants.PreDrainDeleteHookAnnotationKey, constants.PreDrainDeleteHookAnnotationValue))
 		originalMachine := machine.DeepCopy()
@@ -129,7 +130,7 @@ var _ = Describe("The NodeController", func() {
 		Expect(workloadClient.Patch(context.Background(), node, client.MergeFrom(originalNode))).To(Succeed())
 		Eventually(func(g Gomega) map[string]string {
 			var result clusterv1beta1.Machine
-			g.Expect(managementClient.Get(context.Background(), client.ObjectKeyFromObject(machine), &result))
+			g.Expect(managementClient.Get(context.Background(), client.ObjectKeyFromObject(machine), &result)).To(Succeed())
 			return result.Annotations
 		}).ShouldNot(HaveKey(constants.PreDrainDeleteHookAnnotationKey))
 	})

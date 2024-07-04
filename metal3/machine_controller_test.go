@@ -19,6 +19,7 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+
 	"github.com/sapcc/runtime-extension-maintenance-controller/constants"
 	"github.com/sapcc/runtime-extension-maintenance-controller/metal3"
 

@@ -23,8 +23,6 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	"github.com/sapcc/runtime-extension-maintenance-controller/clusters"
-	"github.com/sapcc/runtime-extension-maintenance-controller/workload"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -37,6 +35,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+
+	"github.com/sapcc/runtime-extension-maintenance-controller/clusters"
+	"github.com/sapcc/runtime-extension-maintenance-controller/workload"
 )
 
 func TestWorkload(t *testing.T) {

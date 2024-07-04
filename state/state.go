@@ -20,13 +20,14 @@ import (
 
 	jsonpatch "github.com/evanphx/json-patch"
 	"github.com/go-logr/logr"
-	"github.com/sapcc/runtime-extension-maintenance-controller/clusters"
-	"github.com/sapcc/runtime-extension-maintenance-controller/constants"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/types"
 	clusterv1beta1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/sapcc/runtime-extension-maintenance-controller/clusters"
+	"github.com/sapcc/runtime-extension-maintenance-controller/constants"
 )
 
 const (

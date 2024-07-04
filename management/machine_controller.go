@@ -19,17 +19,18 @@ import (
 	"fmt"
 
 	"github.com/go-logr/logr"
-	"github.com/sapcc/runtime-extension-maintenance-controller/clusters"
-	"github.com/sapcc/runtime-extension-maintenance-controller/constants"
-	"github.com/sapcc/runtime-extension-maintenance-controller/state"
-	"github.com/sapcc/runtime-extension-maintenance-controller/workload"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
 	corev1_informers "k8s.io/client-go/informers/core/v1"
 	clusterv1beta1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/controller"
+	ctrlcontroller "sigs.k8s.io/controller-runtime/pkg/controller"
+
+	"github.com/sapcc/runtime-extension-maintenance-controller/clusters"
+	"github.com/sapcc/runtime-extension-maintenance-controller/constants"
+	"github.com/sapcc/runtime-extension-maintenance-controller/state"
+	"github.com/sapcc/runtime-extension-maintenance-controller/workload"
 )
 
 type MachineReconciler struct {
@@ -72,7 +73,6 @@ func (r *MachineReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 			managementClient: r.Client,
 			log:              ctrl.Log.WithName("workload").WithValues("cluster", clusterKey.String()),
 			connections:      r.ClusterConnections,
-			workloadCtx:      workloadCtx,
 		})
 		if err != nil {
 			cancel()
@@ -145,7 +145,6 @@ type NodeControllerParamaters struct {
 	connections      *clusters.Connections
 	managementClient client.Client
 	log              logr.Logger
-	workloadCtx      context.Context
 }
 
 // RBAC-Limited kubeconfigs are currently not possible: https://github.com/kubernetes-sigs/cluster-api/issues/5553
@@ -177,13 +176,13 @@ func makeNodeCtrl(ctx context.Context, params NodeControllerParamaters) (*worklo
 			}
 		},
 	)
-	params.connections.AddConn(params.workloadCtx, params.log, params.cluster, conn)
+	params.connections.AddConn(ctx, params.log, params.cluster, conn)
 	return &controller, nil
 }
 
 func (r *MachineReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		WithOptions(controller.Options{
+		WithOptions(ctrlcontroller.Options{
 			MaxConcurrentReconciles: 1,
 		}).
 		For(&clusterv1beta1.Machine{}).

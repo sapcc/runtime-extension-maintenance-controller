@@ -16,11 +16,12 @@ package management_test
 
 import (
 	"context"
-	"fmt"
+	"strconv"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+
 	"github.com/sapcc/runtime-extension-maintenance-controller/constants"
 	"github.com/sapcc/runtime-extension-maintenance-controller/state"
 
@@ -102,7 +103,7 @@ var _ = Describe("The MachineReconciler", func() {
 			Expect(workloadClient.Patch(context.Background(), node, client.MergeFrom(originalNode))).To(Succeed())
 			// need to patch the machine to trigger a reconcile
 			originalMachine := machine.DeepCopy()
-			machine.Labels["timestamp"] = fmt.Sprint(time.Now().Unix())
+			machine.Labels["timestamp"] = strconv.FormatInt(time.Now().Unix(), 10)
 			Expect(managementClient.Patch(context.Background(), machine, client.MergeFrom(originalMachine))).To(Succeed())
 		})
 

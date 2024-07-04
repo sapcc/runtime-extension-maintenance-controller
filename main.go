@@ -19,12 +19,13 @@ import (
 	"flag"
 	"os"
 
+	"go.uber.org/zap/zapcore"
+	"k8s.io/apimachinery/pkg/runtime"
+
 	"github.com/sapcc/runtime-extension-maintenance-controller/clusters"
 	"github.com/sapcc/runtime-extension-maintenance-controller/management"
 	"github.com/sapcc/runtime-extension-maintenance-controller/metal3"
 	"github.com/sapcc/runtime-extension-maintenance-controller/workload"
-	"go.uber.org/zap/zapcore"
-	"k8s.io/apimachinery/pkg/runtime"
 
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
