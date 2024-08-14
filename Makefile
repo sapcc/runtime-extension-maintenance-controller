@@ -34,12 +34,13 @@ install-ginkgo: FORCE
 GO_BUILDFLAGS =
 GO_LDFLAGS =
 GO_TESTENV =
+GO_BUILDENV =
 TESTBIN=$(shell pwd)/testbin
 
 build-all: build/runtime-extension-maintenance-controller
 
 build/runtime-extension-maintenance-controller: FORCE generate
-	go build $(GO_BUILDFLAGS) -ldflags '-s -w $(GO_LDFLAGS)' -o build/runtime-extension-maintenance-controller .
+	@env $(GO_BUILDENV) go build $(GO_BUILDFLAGS) -ldflags '-s -w $(GO_LDFLAGS)' -o build/runtime-extension-maintenance-controller .
 
 DESTDIR =
 ifeq ($(shell uname -s),Darwin)
@@ -69,8 +70,8 @@ check: FORCE static-check build/cover.html build-all
 
 generate: install-controller-gen
 	@printf "\e[1;36m>> controller-gen\e[0m\n"
-	@controller-gen crd rbac:roleName=runtime-extension-maintenance-controller paths="./..." output:crd:artifacts:config=crd
-	@controller-gen object paths=./...
+	@controller-gen crd rbac:roleName=runtime-extension-maintenance-controller webhook paths="./..." output:crd:artifacts:config=crd
+	@controller-gen object paths="./..."
 
 run-golangci-lint: FORCE prepare-static-check
 	@printf "\e[1;36m>> golangci-lint\e[0m\n"
@@ -78,7 +79,7 @@ run-golangci-lint: FORCE prepare-static-check
 
 build/cover.out: FORCE install-ginkgo generate install-setup-envtest | build
 	@printf "\e[1;36m>> Running tests\e[0m\n"
-	KUBEBUILDER_ASSETS="$(shell setup-envtest use 1.30 --bin-dir $(TESTBIN) -p path)" ginkgo run --randomize-all -output-dir=build $(GO_BUILDFLAGS) -ldflags '-s -w $(GO_LDFLAGS)' -covermode=count -coverpkg=$(subst $(space),$(comma),$(GO_COVERPKGS)) $(GO_TESTPKGS)
+	KUBEBUILDER_ASSETS=$$(setup-envtest use 1.31 --bin-dir $(TESTBIN) -p path) ginkgo run --randomize-all -output-dir=build $(GO_BUILDFLAGS) -ldflags '-s -w $(GO_LDFLAGS)' -covermode=count -coverpkg=$(subst $(space),$(comma),$(GO_COVERPKGS)) $(GO_TESTPKGS)
 	@mv build/coverprofile.out build/cover.out
 
 build/cover.html: build/cover.out
@@ -96,11 +97,11 @@ tidy-deps: FORCE
 
 license-headers: FORCE prepare-static-check
 	@printf "\e[1;36m>> addlicense\e[0m\n"
-	@addlicense -c "SAP SE"  -- $(patsubst $(shell awk '$$1 == "module" {print $$2}' go.mod)%,.%/*.go,$(shell go list ./...))
+	@addlicense -c "SAP SE" -- $(patsubst $(shell awk '$$1 == "module" {print $$2}' go.mod)%,.%/*.go,$(shell go list ./...))
 
 check-license-headers: FORCE prepare-static-check
 	@printf "\e[1;36m>> addlicense --check\e[0m\n"
-	@addlicense --check  -- $(patsubst $(shell awk '$$1 == "module" {print $$2}' go.mod)%,.%/*.go,$(shell go list ./...))
+	@addlicense --check -- $(patsubst $(shell awk '$$1 == "module" {print $$2}' go.mod)%,.%/*.go,$(shell go list ./...))
 
 check-dependency-licenses: FORCE prepare-static-check
 	@printf "\e[1;36m>> go-licence-detector\e[0m\n"
@@ -111,6 +112,7 @@ clean: FORCE
 
 vars: FORCE
 	@printf "DESTDIR=$(DESTDIR)\n"
+	@printf "GO_BUILDENV=$(GO_BUILDENV)\n"
 	@printf "GO_BUILDFLAGS=$(GO_BUILDFLAGS)\n"
 	@printf "GO_COVERPKGS=$(GO_COVERPKGS)\n"
 	@printf "GO_LDFLAGS=$(GO_LDFLAGS)\n"
@@ -147,7 +149,7 @@ help: FORCE
 	@printf "\n"
 	@printf "\e[1mDevelopment\e[0m\n"
 	@printf "  \e[36mtidy-deps\e[0m                                       Run go mod tidy and go mod verify.\n"
-	@printf "  \e[36mlicense-headers\e[0m                                 Add license headers to all non-vendored .go files.\n"
+	@printf "  \e[36mlicense-headers\e[0m                                 Add license headers to all non-vendored source code files.\n"
 	@printf "  \e[36mcheck-license-headers\e[0m                           Check license headers in all non-vendored .go files.\n"
 	@printf "  \e[36mcheck-dependency-licenses\e[0m                       Check all dependency licenses using go-licence-detector.\n"
 	@printf "  \e[36mclean\e[0m                                           Run git clean.\n"
