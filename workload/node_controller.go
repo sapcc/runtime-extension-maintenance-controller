@@ -17,7 +17,6 @@ package workload
 import (
 	"context"
 	"fmt"
-	"reflect"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -48,7 +47,7 @@ type NodeController struct {
 	log              logr.Logger
 	managementClient client.Client
 	connections      *clusters.Connections
-	queue            workqueue.RateLimitingInterface
+	queue            workqueue.TypedRateLimitingInterface[types.NamespacedName]
 	cluster          types.NamespacedName
 	reauthChan       chan struct{}
 }
@@ -63,7 +62,8 @@ type NodeControllerOptions struct {
 func NewNodeController(opts NodeControllerOptions) (NodeController, error) {
 	// shared informers are not shared for WorkloadNodeControllers
 	// as nodes from different clusters may end up in the shared cache
-	queue := workqueue.NewRateLimitingQueue(workqueue.NewItemExponentialFailureRateLimiter(baseDelay, maxDelay))
+	rateLimiter := workqueue.NewTypedItemExponentialFailureRateLimiter[types.NamespacedName](baseDelay, maxDelay)
+	queue := workqueue.NewTypedRateLimitingQueue(rateLimiter)
 	controller := NodeController{
 		log:              opts.Log.WithValues("cluster", opts.Cluster.String()),
 		managementClient: opts.ManagementClient,
@@ -158,13 +158,7 @@ func (c *NodeController) Run(ctx context.Context) {
 			if quit {
 				return
 			}
-			name, ok := key.(types.NamespacedName)
-			if !ok {
-				c.log.Info("something other than types.NamespacedName fetched from queue", "type", reflect.TypeOf(key).Name())
-				c.queue.Done(key)
-				continue
-			}
-			if err := c.Reconcile(ctx, ctrl.Request{NamespacedName: name}); err != nil {
+			if err := c.Reconcile(ctx, ctrl.Request{NamespacedName: key}); err != nil {
 				c.log.Error(err, "failed to reconcile workload cluster node")
 			}
 			c.queue.Done(key)
