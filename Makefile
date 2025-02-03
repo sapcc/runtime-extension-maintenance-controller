@@ -48,7 +48,7 @@ GO_BUILDENV =
 build-all: build/runtime-extension-maintenance-controller
 
 build/runtime-extension-maintenance-controller: FORCE generate
-	@env $(GO_BUILDENV) go build $(GO_BUILDFLAGS) -ldflags '-s -w $(GO_LDFLAGS)' -o build/runtime-extension-maintenance-controller .
+	env $(GO_BUILDENV) go build $(GO_BUILDFLAGS) -ldflags '-s -w $(GO_LDFLAGS)' -o build/runtime-extension-maintenance-controller .
 
 DESTDIR =
 ifeq ($(shell uname -s),Darwin)
