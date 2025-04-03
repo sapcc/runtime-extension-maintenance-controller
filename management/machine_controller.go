@@ -47,7 +47,7 @@ type MachineReconciler struct {
 
 func (r *MachineReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	var machine clusterv1beta1.Machine
-	err := r.Client.Get(ctx, req.NamespacedName, &machine)
+	err := r.Get(ctx, req.NamespacedName, &machine)
 	if errors.IsNotFound(err) {
 		r.Log.Info("failed to get machine, was it deleted?", "machine", req.String())
 		return ctrl.Result{}, nil
@@ -104,7 +104,7 @@ func (r *MachineReconciler) cleanupMachine(ctx context.Context, machine *cluster
 	original := machine.DeepCopy()
 	// cleanup pre-drain hook
 	delete(machine.Annotations, constants.PreDrainDeleteHookAnnotationKey)
-	if err := r.Client.Patch(ctx, machine, client.MergeFrom(original)); err != nil {
+	if err := r.Patch(ctx, machine, client.MergeFrom(original)); err != nil {
 		return fmt.Errorf("failed to remove pre-drain hook for machine %s: %w", machine.Name, err)
 	}
 	r.Log.Info("removed pre-drain hook", "machine", machine.Name, "cluster", cluster)
@@ -114,7 +114,7 @@ func (r *MachineReconciler) cleanupMachine(ctx context.Context, machine *cluster
 		constants.EnabledLabelKey:       constants.EnabledLabelValue,
 	}
 	var machineList clusterv1beta1.MachineList
-	if err := r.Client.List(ctx, &machineList, selector); err != nil {
+	if err := r.List(ctx, &machineList, selector); err != nil {
 		return err
 	}
 	if len(machineList.Items) > 0 {

@@ -50,7 +50,7 @@ type MachineReconciler struct {
 
 func (r *MachineReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	var machine clusterv1beta1.Machine
-	err := r.Client.Get(ctx, req.NamespacedName, &machine)
+	err := r.Get(ctx, req.NamespacedName, &machine)
 	if apierrors.IsNotFound(err) {
 		r.Log.Info("failed to get machine, was it deleted?", "machine", req.String())
 		return ctrl.Result{}, nil
@@ -63,7 +63,7 @@ func (r *MachineReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		r.Log.Info("failed to derive baremetal host from machine object", "reason", err)
 		return ctrl.Result{}, nil
 	}
-	err = r.Client.Get(ctx, client.ObjectKeyFromObject(baremetalHost), baremetalHost)
+	err = r.Get(ctx, client.ObjectKeyFromObject(baremetalHost), baremetalHost)
 	originalBaremetalHost := baremetalHost.DeepCopy()
 	if apierrors.IsNotFound(err) {
 		r.Log.Info("failed to get baremetalhost, was it deleted?", "baremetalhost", baremetalHost.GetName())
@@ -83,7 +83,7 @@ func (r *MachineReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		delete(annotations, RebootAnnotation)
 	}
 	baremetalHost.SetAnnotations(annotations)
-	if err = r.Client.Patch(ctx, baremetalHost, client.MergeFrom(originalBaremetalHost)); err != nil {
+	if err = r.Patch(ctx, baremetalHost, client.MergeFrom(originalBaremetalHost)); err != nil {
 		return ctrl.Result{}, err
 	}
 	return ctrl.Result{}, nil
