@@ -20,6 +20,19 @@ githubWorkflow:
   global:
     defaultBranch: master
 
+reuse:
+  annotations:
+  - SPDX-FileCopyrightText: 2024 SAP SE or an SAP affiliate company
+    SPDX-License-Identifier: Apache-2.0
+    paths:
+    - "*/*.drawio.png"
+  - SPDX-FileCopyrightText: Copyright 2018 The Kubernetes Authors
+    SPDX-License-Identifier: Apache-2.0
+    paths: ["crd/machines.yaml"]
+  - SPDX-FileCopyrightText: Copyright 2024 The Metal3 Authors
+    SPDX-License-Identifier: Apache-2.0
+    paths: ["crd/baremetalhosts.yaml"]
+
 renovate:
   enabled: true
   assignees:

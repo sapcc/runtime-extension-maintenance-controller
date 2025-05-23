@@ -18,3 +18,24 @@ path = [
 ]
 SPDX-FileCopyrightText = "SAP SE or an SAP affiliate company"
 SPDX-License-Identifier = "Apache-2.0"
+
+[[annotations]]
+path = [
+  "*/*.drawio.png",
+]
+SPDX-FileCopyrightText = "2024 SAP SE or an SAP affiliate company"
+SPDX-License-Identifier = "Apache-2.0"
+
+[[annotations]]
+path = [
+  "crd/machines.yaml",
+]
+SPDX-FileCopyrightText = "Copyright 2018 The Kubernetes Authors"
+SPDX-License-Identifier = "Apache-2.0"
+
+[[annotations]]
+path = [
+  "crd/baremetalhosts.yaml",
+]
+SPDX-FileCopyrightText = "Copyright 2024 The Metal3 Authors"
+SPDX-License-Identifier = "Apache-2.0"

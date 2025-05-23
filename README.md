@@ -1,3 +1,9 @@
+<!--
+SPDX-FileCopyrightText: 2025 SAP SE or an SAP affiliate company
+
+SPDX-License-Identifier: Apache-2.0
+-->
+
 # runtime-extension-maintenance-controller
 
 ![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/sapcc/runtime-extension-maintenance-controller/test.yaml?branch=master)
