@@ -1,6 +1,6 @@
 module github.com/sapcc/runtime-extension-maintenance-controller
 
-go 1.24.0
+go 1.25
 
 require (
 	github.com/evanphx/json-patch v5.9.11+incompatible
