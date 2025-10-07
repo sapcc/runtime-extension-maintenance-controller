@@ -15,7 +15,7 @@ import (
 	corev1_informers "k8s.io/client-go/informers/core/v1"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
-	clusterv1beta1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	clusterv1beta2 "sigs.k8s.io/cluster-api/api/core/v1beta2"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -66,7 +66,7 @@ func NewNodeController(opts NodeControllerOptions) (NodeController, error) {
 
 func (c *NodeController) AttachTo(nodeInformer corev1_informers.NodeInformer) error {
 	_, err := nodeInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc: func(obj interface{}) {
+		AddFunc: func(obj any) {
 			node, ok := obj.(*corev1.Node)
 			if !ok {
 				c.log.Info("node informer received non-node object")
@@ -74,7 +74,7 @@ func (c *NodeController) AttachTo(nodeInformer corev1_informers.NodeInformer) er
 			}
 			c.queue.Add(client.ObjectKeyFromObject(node))
 		},
-		UpdateFunc: func(oldObj, newObj interface{}) {
+		UpdateFunc: func(oldObj, newObj any) {
 			node, ok := newObj.(*corev1.Node)
 			if !ok {
 				c.log.Info("node informer received non-node object")
@@ -82,7 +82,7 @@ func (c *NodeController) AttachTo(nodeInformer corev1_informers.NodeInformer) er
 			}
 			c.queue.Add(client.ObjectKeyFromObject(node))
 		},
-		DeleteFunc: func(obj interface{}) {
+		DeleteFunc: func(obj any) {
 			if deleted, ok := obj.(cache.DeletedFinalStateUnknown); ok {
 				obj = deleted.Obj
 			}
@@ -167,16 +167,16 @@ func (c *NodeController) Reconcile(ctx context.Context, req ctrl.Request) error 
 		return err
 	}
 
-	machineName, ok := node.Annotations[clusterv1beta1.MachineAnnotation]
+	machineName, ok := node.Annotations[clusterv1beta2.MachineAnnotation]
 	if !ok {
-		return fmt.Errorf("node %s is missing the %s annotation", node.Name, clusterv1beta1.MachineAnnotation)
+		return fmt.Errorf("node %s is missing the %s annotation", node.Name, clusterv1beta2.MachineAnnotation)
 	}
-	clusterNamespace, ok := node.Annotations[clusterv1beta1.ClusterNamespaceAnnotation]
+	clusterNamespace, ok := node.Annotations[clusterv1beta2.ClusterNamespaceAnnotation]
 	if !ok {
-		return fmt.Errorf("node %s is missing the %s annotation", node.Name, clusterv1beta1.ClusterNamespaceAnnotation)
+		return fmt.Errorf("node %s is missing the %s annotation", node.Name, clusterv1beta2.ClusterNamespaceAnnotation)
 	}
 	machineKey := types.NamespacedName{Namespace: clusterNamespace, Name: machineName}
-	var machine clusterv1beta1.Machine
+	var machine clusterv1beta2.Machine
 	if err := c.managementClient.Get(ctx, machineKey, &machine); err != nil {
 		return err
 	}
