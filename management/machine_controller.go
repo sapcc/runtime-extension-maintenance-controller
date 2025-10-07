@@ -11,7 +11,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
 	corev1_informers "k8s.io/client-go/informers/core/v1"
-	clusterv1beta1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	clusterv1beta2 "sigs.k8s.io/cluster-api/api/core/v1beta2"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	ctrlcontroller "sigs.k8s.io/controller-runtime/pkg/controller"
@@ -35,7 +35,7 @@ type MachineReconciler struct {
 }
 
 func (r *MachineReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	var machine clusterv1beta1.Machine
+	var machine clusterv1beta2.Machine
 	err := r.Get(ctx, req.NamespacedName, &machine)
 	if errors.IsNotFound(err) {
 		r.Log.Info("failed to get machine, was it deleted?", "machine", req.String())
@@ -71,7 +71,7 @@ func (r *MachineReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		r.CancelFuncs[clusterName] = cancel
 		go workloadController.Run(workloadCtx)
 	}
-	if machine.Status.NodeRef == nil {
+	if machine.Status.NodeRef.Name == "" {
 		r.Log.Info("machine has no nodeRef", "machine", req.String())
 		return ctrl.Result{}, nil
 	}
@@ -89,7 +89,7 @@ func (r *MachineReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	return ctrl.Result{}, reconciler.PatchState(ctx, &machine, node)
 }
 
-func (r *MachineReconciler) cleanupMachine(ctx context.Context, machine *clusterv1beta1.Machine, cluster string) error {
+func (r *MachineReconciler) cleanupMachine(ctx context.Context, machine *clusterv1beta2.Machine, cluster string) error {
 	original := machine.DeepCopy()
 	// cleanup pre-drain hook
 	delete(machine.Annotations, constants.PreDrainDeleteHookAnnotationKey)
@@ -99,10 +99,10 @@ func (r *MachineReconciler) cleanupMachine(ctx context.Context, machine *cluster
 	r.Log.Info("removed pre-drain hook", "machine", machine.Name, "cluster", cluster)
 	// cleanup workload node reconciler, if no machine uses maintenance-controller
 	selector := client.MatchingLabels{
-		clusterv1beta1.ClusterNameLabel: cluster,
+		clusterv1beta2.ClusterNameLabel: cluster,
 		constants.EnabledLabelKey:       constants.EnabledLabelValue,
 	}
-	var machineList clusterv1beta1.MachineList
+	var machineList clusterv1beta2.MachineList
 	if err := r.List(ctx, &machineList, selector); err != nil {
 		return err
 	}
@@ -174,6 +174,6 @@ func (r *MachineReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		WithOptions(ctrlcontroller.Options{
 			MaxConcurrentReconciles: 1,
 		}).
-		For(&clusterv1beta1.Machine{}).
+		For(&clusterv1beta2.Machine{}).
 		Complete(r)
 }

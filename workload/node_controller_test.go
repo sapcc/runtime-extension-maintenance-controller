@@ -18,7 +18,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	clusterv1beta1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	clusterv1beta2 "sigs.k8s.io/cluster-api/api/core/v1beta2"
 )
 
 const (
@@ -29,30 +29,37 @@ const (
 var _ = Describe("The NodeController", func() {
 
 	var node *corev1.Node
-	var machine *clusterv1beta1.Machine
+	var machine *clusterv1beta2.Machine
 
 	BeforeEach(func() {
 		node = &corev1.Node{}
 		node.Name = nodeName
 		node.Annotations = map[string]string{
-			clusterv1beta1.MachineAnnotation:          machineName,
-			clusterv1beta1.ClusterNamespaceAnnotation: metav1.NamespaceDefault,
+			clusterv1beta2.MachineAnnotation:          machineName,
+			clusterv1beta2.ClusterNamespaceAnnotation: metav1.NamespaceDefault,
 		}
 		Expect(workloadClient.Create(context.Background(), node)).To(Succeed())
 
-		machine = &clusterv1beta1.Machine{}
+		machine = &clusterv1beta2.Machine{}
 		machine.Name = machineName
 		machine.Namespace = metav1.NamespaceDefault
 		machine.Labels = map[string]string{
 			constants.EnabledLabelKey: constants.EnabledLabelValue,
 		}
 		machine.Spec.ClusterName = "management"
+		machine.Spec.Bootstrap.ConfigRef = clusterv1beta2.ContractVersionedObjectReference{
+			Kind:     "ConfigMap",
+			Name:     "dummy",
+			APIGroup: "v1",
+		}
+		machine.Spec.InfrastructureRef = clusterv1beta2.ContractVersionedObjectReference{
+			Kind:     "DummyMachine",
+			Name:     "dummy",
+			APIGroup: "infrastructure.cluster.x-k8s.io",
+		}
 		Expect(managementClient.Create(context.Background(), machine)).To(Succeed())
-		machine.Status.NodeRef = &corev1.ObjectReference{
-			Kind:       node.Kind,
-			Name:       node.Name,
-			UID:        node.UID,
-			APIVersion: node.APIVersion,
+		machine.Status.NodeRef = clusterv1beta2.MachineNodeReference{
+			Name: node.Name,
 		}
 		Expect(managementClient.Status().Update(context.Background(), machine)).To(Succeed())
 	})
@@ -67,7 +74,7 @@ var _ = Describe("The NodeController", func() {
 		node.Labels = map[string]string{state.MaintenanceStateLabelKey: "whatever"}
 		Expect(workloadClient.Patch(context.Background(), node, client.MergeFrom(originalNode))).To(Succeed())
 		Eventually(func(g Gomega) map[string]string {
-			var result clusterv1beta1.Machine
+			var result clusterv1beta2.Machine
 			g.Expect(managementClient.Get(context.Background(), client.ObjectKeyFromObject(machine), &result)).To(Succeed())
 			return result.Annotations
 		}).Should(HaveKeyWithValue(constants.PreDrainDeleteHookAnnotationKey, constants.PreDrainDeleteHookAnnotationValue))
@@ -78,7 +85,7 @@ var _ = Describe("The NodeController", func() {
 		node.Labels = map[string]string{state.MaintenanceStateLabelKey: "whatever"}
 		Expect(workloadClient.Patch(context.Background(), node, client.MergeFrom(originalNode))).To(Succeed())
 		Eventually(func(g Gomega) map[string]string {
-			var result clusterv1beta1.Machine
+			var result clusterv1beta2.Machine
 			g.Expect(managementClient.Get(context.Background(), client.ObjectKeyFromObject(machine), &result)).To(Succeed())
 			return result.Annotations
 		}).Should(HaveKeyWithValue(constants.PreDrainDeleteHookAnnotationKey, constants.PreDrainDeleteHookAnnotationValue))
@@ -88,7 +95,7 @@ var _ = Describe("The NodeController", func() {
 		}
 		Expect(managementClient.Patch(context.Background(), machine, client.MergeFrom(originalMachine))).To(Succeed())
 		Consistently(func(g Gomega) map[string]string {
-			var result clusterv1beta1.Machine
+			var result clusterv1beta2.Machine
 			g.Expect(managementClient.Get(context.Background(), client.ObjectKeyFromObject(machine), &result)).To(Succeed())
 			return result.Annotations
 		}).Should(HaveKeyWithValue(constants.PreDrainDeleteHookAnnotationKey, constants.PreDrainDeleteHookAnnotationValue))
@@ -96,7 +103,7 @@ var _ = Describe("The NodeController", func() {
 		node.Labels[constants.ApproveDeletionLabelKey] = constants.ApproveDeletionLabelValue
 		Expect(workloadClient.Patch(context.Background(), node, client.MergeFrom(originalNode))).To(Succeed())
 		Eventually(func(g Gomega) map[string]string {
-			var result clusterv1beta1.Machine
+			var result clusterv1beta2.Machine
 			g.Expect(managementClient.Get(context.Background(), client.ObjectKeyFromObject(machine), &result)).To(Succeed())
 			return result.Annotations
 		}).ShouldNot(HaveKey(constants.PreDrainDeleteHookAnnotationKey))
@@ -107,7 +114,7 @@ var _ = Describe("The NodeController", func() {
 		node.Labels = map[string]string{state.MaintenanceStateLabelKey: "whatever"}
 		Expect(workloadClient.Patch(context.Background(), node, client.MergeFrom(originalNode))).To(Succeed())
 		Eventually(func(g Gomega) map[string]string {
-			var result clusterv1beta1.Machine
+			var result clusterv1beta2.Machine
 			g.Expect(managementClient.Get(context.Background(), client.ObjectKeyFromObject(machine), &result)).To(Succeed())
 			return result.Annotations
 		}).Should(HaveKeyWithValue(constants.PreDrainDeleteHookAnnotationKey, constants.PreDrainDeleteHookAnnotationValue))
@@ -118,7 +125,7 @@ var _ = Describe("The NodeController", func() {
 		node.Labels = map[string]string{state.MaintenanceStateLabelKey: "banana"}
 		Expect(workloadClient.Patch(context.Background(), node, client.MergeFrom(originalNode))).To(Succeed())
 		Eventually(func(g Gomega) map[string]string {
-			var result clusterv1beta1.Machine
+			var result clusterv1beta2.Machine
 			g.Expect(managementClient.Get(context.Background(), client.ObjectKeyFromObject(machine), &result)).To(Succeed())
 			return result.Annotations
 		}).ShouldNot(HaveKey(constants.PreDrainDeleteHookAnnotationKey))

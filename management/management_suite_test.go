@@ -18,7 +18,7 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
-	clusterv1beta1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	clusterv1beta2 "sigs.k8s.io/cluster-api/api/core/v1beta2"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
@@ -79,7 +79,7 @@ var _ = BeforeSuite(func() {
 	workloadEnv = &envtest.Environment{}
 
 	Expect(corev1.AddToScheme(scheme.Scheme)).To(Succeed())
-	Expect(clusterv1beta1.AddToScheme(scheme.Scheme)).To(Succeed())
+	Expect(clusterv1beta2.AddToScheme(scheme.Scheme)).To(Succeed())
 
 	var err error
 

@@ -12,7 +12,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	clusterv1beta1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	clusterv1beta2 "sigs.k8s.io/cluster-api/api/core/v1beta2"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
@@ -38,7 +38,7 @@ type MachineReconciler struct {
 }
 
 func (r *MachineReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	var machine clusterv1beta1.Machine
+	var machine clusterv1beta2.Machine
 	err := r.Get(ctx, req.NamespacedName, &machine)
 	if apierrors.IsNotFound(err) {
 		r.Log.Info("failed to get machine, was it deleted?", "machine", req.String())
@@ -78,11 +78,8 @@ func (r *MachineReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	return ctrl.Result{}, nil
 }
 
-func hostFromProviderID(providerID *string) (*unstructured.Unstructured, error) {
-	if providerID == nil {
-		return nil, errors.New("machine has no providerID")
-	}
-	providerParts := strings.Split(*providerID, "/")
+func hostFromProviderID(providerID string) (*unstructured.Unstructured, error) {
+	providerParts := strings.Split(providerID, "/")
 	if providerParts[0] != "metal3:" {
 		return nil, errors.New("machine is not managed by metal3")
 	}
@@ -101,7 +98,7 @@ func (r *MachineReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		WithOptions(controller.Options{
 			MaxConcurrentReconciles: 1,
 		}).
-		For(&clusterv1beta1.Machine{}).
+		For(&clusterv1beta2.Machine{}).
 		Named("metal3").
 		Complete(r)
 }

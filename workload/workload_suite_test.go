@@ -19,7 +19,7 @@ import (
 	corev1_informers "k8s.io/client-go/informers/core/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
-	clusterv1beta1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	clusterv1beta2 "sigs.k8s.io/cluster-api/api/core/v1beta2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
@@ -52,7 +52,7 @@ var _ = BeforeSuite(func() {
 	workloadEnv = &envtest.Environment{}
 
 	Expect(corev1.AddToScheme(scheme.Scheme)).To(Succeed())
-	Expect(clusterv1beta1.AddToScheme(scheme.Scheme)).To(Succeed())
+	Expect(clusterv1beta2.AddToScheme(scheme.Scheme)).To(Succeed())
 
 	workloadCfg, err := workloadEnv.Start()
 	Expect(err).To(Succeed())

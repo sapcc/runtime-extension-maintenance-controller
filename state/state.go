@@ -12,7 +12,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/types"
-	clusterv1beta1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	clusterv1beta2 "sigs.k8s.io/cluster-api/api/core/v1beta2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/sapcc/runtime-extension-maintenance-controller/clusters"
@@ -31,9 +31,9 @@ const (
 )
 
 // Is currently invoked in parallel by management and workload controller.
-func propagate(log logr.Logger, machine *clusterv1beta1.Machine, node *corev1.Node) {
+func propagate(log logr.Logger, machine *clusterv1beta2.Machine, node *corev1.Node) {
 	log = log.WithValues("node", node.Name, "machine", machine.Namespace+"/"+machine.Name)
-	if machine.Status.NodeRef == nil {
+	if machine.Status.NodeRef.Name == "" {
 		log.Info("machine has no nodeRef")
 		return
 	}
@@ -76,7 +76,7 @@ func propagate(log logr.Logger, machine *clusterv1beta1.Machine, node *corev1.No
 }
 
 // Add pre-drain hook to machines that have a noderef and the cloud.sap/maintenance-state label.
-func machineRequiresPreDrainHook(machine *clusterv1beta1.Machine, node *corev1.Node) bool {
+func machineRequiresPreDrainHook(machine *clusterv1beta2.Machine, node *corev1.Node) bool {
 	_, hasMaintenanceState := node.Labels[MaintenanceStateLabelKey]
 	approved, ok := node.Labels[constants.ApproveDeletionLabelKey]
 	isApproved := ok && approved == constants.ApproveDeletionLabelValue
@@ -86,14 +86,14 @@ func machineRequiresPreDrainHook(machine *clusterv1beta1.Machine, node *corev1.N
 }
 
 // For to be deleted machines with hook deliver label onto the node (deletion timestamp).
-func nodeRequiresDeletionLabel(machine *clusterv1beta1.Machine, node *corev1.Node) bool {
+func nodeRequiresDeletionLabel(machine *clusterv1beta2.Machine, node *corev1.Node) bool {
 	_, hasMaintenanceState := node.Labels[MaintenanceStateLabelKey]
 	enabledValue, ok := machine.Labels[constants.EnabledLabelKey]
 	isEnabled := ok && enabledValue == constants.EnabledLabelValue
 	return hasMaintenanceState && isEnabled && machine.DeletionTimestamp != nil
 }
 
-func nodeRequiresMaintenanceLabel(machine *clusterv1beta1.Machine, node *corev1.Node) bool {
+func nodeRequiresMaintenanceLabel(machine *clusterv1beta2.Machine, node *corev1.Node) bool {
 	_, hasMaintenanceState := node.Labels[MaintenanceStateLabelKey]
 	enabledValue, ok := machine.Labels[constants.EnabledLabelKey]
 	isEnabled := ok && enabledValue == constants.EnabledLabelValue
@@ -103,7 +103,7 @@ func nodeRequiresMaintenanceLabel(machine *clusterv1beta1.Machine, node *corev1.
 	return hasMaintenanceState && isEnabled && isRequested
 }
 
-func machineRequiresMaintenanceApproved(machine *clusterv1beta1.Machine, node *corev1.Node) bool {
+func machineRequiresMaintenanceApproved(machine *clusterv1beta2.Machine, node *corev1.Node) bool {
 	_, hasMaintenanceState := node.Labels[MaintenanceStateLabelKey]
 	enabledValue, ok := machine.Labels[constants.EnabledLabelKey]
 	isEnabled := ok && enabledValue == constants.EnabledLabelValue
@@ -121,7 +121,7 @@ type Reconciler struct {
 	Cluster          types.NamespacedName
 }
 
-func (r *Reconciler) PatchState(ctx context.Context, machine *clusterv1beta1.Machine, node *corev1.Node) error {
+func (r *Reconciler) PatchState(ctx context.Context, machine *clusterv1beta2.Machine, node *corev1.Node) error {
 	originalNode := node.DeepCopy()
 	originalMachine := machine.DeepCopy()
 	propagate(r.Log, machine, node)

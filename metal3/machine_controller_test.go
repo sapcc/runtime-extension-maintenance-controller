@@ -14,15 +14,14 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/utils/ptr"
-	clusterv1beta1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	clusterv1beta2 "sigs.k8s.io/cluster-api/api/core/v1beta2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 var _ = Describe("The MachineReconciler", func() {
 
 	var baremetalHost *unstructured.Unstructured
-	var machine *clusterv1beta1.Machine
+	var machine *clusterv1beta2.Machine
 
 	BeforeEach(func() {
 		baremetalHost = &unstructured.Unstructured{}
@@ -31,11 +30,21 @@ var _ = Describe("The MachineReconciler", func() {
 		baremetalHost.SetGroupVersionKind(metal3.BaremetalHostGVK)
 		Expect(managementClient.Create(context.Background(), baremetalHost)).To(Succeed())
 
-		machine = &clusterv1beta1.Machine{}
+		machine = &clusterv1beta2.Machine{}
 		machine.Name = "the-machine"
 		machine.Namespace = metav1.NamespaceDefault
 		machine.Spec.ClusterName = "the-cluster"
-		machine.Spec.ProviderID = ptr.To("metal3://default/the-host/the-machine")
+		machine.Spec.ProviderID = "metal3://default/the-host/the-machine"
+		machine.Spec.Bootstrap.ConfigRef = clusterv1beta2.ContractVersionedObjectReference{
+			Kind:     "ConfigMap",
+			Name:     "dummy",
+			APIGroup: "v1",
+		}
+		machine.Spec.InfrastructureRef = clusterv1beta2.ContractVersionedObjectReference{
+			Kind:     "DummyMachine",
+			Name:     "dummy",
+			APIGroup: "infrastructure.cluster.x-k8s.io",
+		}
 		Expect(managementClient.Create(context.Background(), machine)).To(Succeed())
 	})
 
@@ -79,7 +88,7 @@ var _ = Describe("The MachineReconciler", func() {
 		baremetalHost.SetAnnotations(map[string]string{metal3.RebootAnnotation: ""})
 		Expect(managementClient.Patch(ctx, baremetalHost, client.MergeFrom(originalHost))).To(Succeed())
 
-		machine := &clusterv1beta1.Machine{}
+		machine := &clusterv1beta2.Machine{}
 		Expect(managementClient.Get(ctx, client.ObjectKeyFromObject(originalMachine), machine)).To(Succeed())
 		originalMachine = machine.DeepCopy()
 		machine.Labels = make(map[string]string)
