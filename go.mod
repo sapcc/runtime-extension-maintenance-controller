@@ -5,14 +5,14 @@ go 1.25
 require (
 	github.com/evanphx/json-patch v5.9.11+incompatible
 	github.com/go-logr/logr v1.4.3
-	github.com/onsi/ginkgo/v2 v2.26.0
+	github.com/onsi/ginkgo/v2 v2.27.1
 	github.com/onsi/gomega v1.38.2
 	go.uber.org/zap v1.27.0
 	k8s.io/api v0.34.1
 	k8s.io/apimachinery v0.34.1
 	k8s.io/client-go v0.34.1
-	sigs.k8s.io/cluster-api v1.11.1
-	sigs.k8s.io/controller-runtime v0.22.2
+	sigs.k8s.io/cluster-api v1.11.2
+	sigs.k8s.io/controller-runtime v0.22.3
 )
 
 require (
