@@ -2015,7 +2015,7 @@ spec:
                 properties:
                   bootstrapDataSecretCreated:
                     description: |-
-                      bootstrapDataSecretCreated is true when the bootstrap provider reports that the Machine's boostrap secret is created.
+                      bootstrapDataSecretCreated is true when the bootstrap provider reports that the Machine's bootstrap secret is created.
                       NOTE: this field is part of the Cluster API contract, and it is used to orchestrate provisioning.
                       The value of this field is never updated after provisioning is completed.
                     type: boolean

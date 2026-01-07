@@ -168,9 +168,9 @@ var _ = Describe("The MachineReconciler", func() {
 			machine.Labels[constants.MaintenanceLabelKey] = constants.MaintenanceLabelRequested
 			Expect(managementClient.Patch(ctx, machine, client.MergeFrom(originalMachine))).To(Succeed())
 
-			orginalNode := node.DeepCopy()
+			originalNode := node.DeepCopy()
 			node.Labels[state.ApproveMaintenanceLabelKey] = state.ApproveMaintenanceLabelValue
-			Expect(workloadClient.Patch(ctx, node, client.MergeFrom(orginalNode))).To(Succeed())
+			Expect(workloadClient.Patch(ctx, node, client.MergeFrom(originalNode))).To(Succeed())
 
 			Eventually(func(g Gomega) map[string]string {
 				var result clusterv1beta2.Machine
