@@ -27,7 +27,7 @@ type MachineReconciler struct {
 	Log                     logr.Logger
 	WorkloadNodeControllers map[string]*workload.NodeController
 	ClusterConnections      *clusters.Connections
-	// A WorkloadNodeController needs an interruptable long-running context.
+	// A WorkloadNodeController needs an interruptible long-running context.
 	// Reconcile may get a short context, so the long-running context is
 	// fetched from a factory function.
 	WorkloadContextFunc func() context.Context
@@ -57,7 +57,7 @@ func (r *MachineReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	clusterKey := types.NamespacedName{Namespace: machine.Namespace, Name: clusterName}
 	if !ok {
 		workloadCtx, cancel := context.WithCancel(r.WorkloadContextFunc())
-		workloadController, err := makeNodeCtrl(ctx, workloadCtx, NodeControllerParamaters{
+		workloadController, err := makeNodeCtrl(ctx, workloadCtx, NodeControllerParameters{
 			cluster:          clusterKey,
 			managementClient: r.Client,
 			log:              ctrl.Log.WithName("workload").WithValues("cluster", clusterKey.String()),
@@ -129,7 +129,7 @@ func (r *MachineReconciler) cleanupMachine(ctx context.Context, machine *cluster
 	return nil
 }
 
-type NodeControllerParamaters struct {
+type NodeControllerParameters struct {
 	cluster          types.NamespacedName
 	connections      *clusters.Connections
 	managementClient client.Client
@@ -138,7 +138,7 @@ type NodeControllerParamaters struct {
 
 // RBAC-Limited kubeconfigs are currently not possible: https://github.com/kubernetes-sigs/cluster-api/issues/5553
 // and https://github.com/kubernetes-sigs/cluster-api/issues/3661
-func makeNodeCtrl(mainCtx, workloadCtx context.Context, params NodeControllerParamaters) (*workload.NodeController, error) {
+func makeNodeCtrl(mainCtx, workloadCtx context.Context, params NodeControllerParameters) (*workload.NodeController, error) {
 	controller, err := workload.NewNodeController(workload.NodeControllerOptions{
 		Log:              params.log,
 		ManagementClient: params.managementClient,

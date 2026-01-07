@@ -110,7 +110,7 @@ func (c *NodeController) AttachTo(nodeInformer corev1_informers.NodeInformer) er
 		c.log.Info("auth expired on node informer")
 		// ReauthConn needs to be moved to another goroutine
 		// because within the handler the reflector goroutine
-		// needs to termiante for inforerFactory.Shutdown() to
+		// needs to terminate for inforerFactory.Shutdown() to
 		// unblock, which ReauthConn would call causing a deadlock.
 		c.reauthChan <- struct{}{}
 	})
